@@ -1,0 +1,12 @@
+node_modules/
+dist/
+node_modules/.vite-cache/
+.vite/
+*.local
+.DS_Store
+*.log
+.playwright-cli/
+
+# 密钥只存浏览器 localStorage，绝不落盘到仓库
+.env
+.env.*
