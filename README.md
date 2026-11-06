@@ -5,6 +5,9 @@
 
 > 核心结论：**LLM 不生成三维代码**。自然语言只被编译成封闭的结构化命令，由受控执行器修改 SceneDocument，再由确定性分阶段 PCG 管线重新推导几何。没有 AI API 时整套核心能力可用。
 
+**视觉体系 v1.0（制图语言）**：界面从「深色软件仪表盘」改为建筑制图语法——编号、引线注记、图例、比例尺、细线直角、图案填充、淡彩平涂三维。提供「浅色图纸 / 深色海图」双主题，顶栏 `◐ 海图 / ◑ 图纸` 切换（主题存 localStorage，不进 SceneDocument）。规范见 [VISUAL_STYLE.md](docs/VISUAL_STYLE.md)，组件级预览见 [styleboard.html](docs/styleboard.html)。
+**改造只作用于呈现层**：默认场景实测仍为指纹 `381A0250`、150 建筑 / 241 地块 / 57 公园 / 777 乔木 / 空间校验 PASS，与改造前逐位一致；`npm run build` 与 93 个测试全绿。
+
 **当前 Scene Schema：v1.2.0**（v1.0.0 / v1.1.0 存档自动迁移）。版本演进：
 - v1.1.0：把扁平单函数生成流程重构为显式阶段 DAG（道路 → 地块 → 功能 → 建筑/公园 → 树木）。
 - v1.2.0：**可编辑道路图 + 多边形地块系统** —— 道路节点/路段可增删改向，地块支持非矩形、多边形、凹凸边界的生成/拆分/合并/修改，编辑后建筑、公园、树木自动重适配。
@@ -33,9 +36,11 @@ npm run dev          # http://127.0.0.1:5190
 | --- | --- |
 | ![工作台](docs/screenshots/demo-workbench.png) | ![可编辑几何](docs/screenshots/demo-editable-top.png) |
 
+> 注：以上截图记录的是**改造前的深色界面**；制图语言 v1.0 的实际效果请打开 `docs/styleboard.html`，或在顶栏切换「图纸 / 海图」主题查看工作台。
+
 **一键验收演示**：点击命令面板右上角 `▶ 运行验收演示`，自动依次执行「生成城市 → 东侧密度 -30% → 撤销 → 重做 → 保存 → 加载」。
 
-**一键图形编辑演示**：命令面板的结构化预设可依次点击「图形：加斜向路」→「图形：斜切地块」→「图形：造 L 形凹地块」，每次「校验并执行」；也可开启视口「节点编辑」直接拖拽橙色道路节点。
+**一键图形编辑演示**：命令面板的结构化预设可依次点击「图形：加斜向路」→「图形：斜切地块」→「图形：造 L 形凹地块」，每次「校验并执行」；也可开启视口「节点编辑」直接拖拽道路节点。
 
 ---
 
@@ -64,6 +69,7 @@ S0 场地基底
 - [PCG_PIPELINE.md](docs/PCG_PIPELINE.md) — 阶段依赖、参数项、空间契约
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — 整体架构与确定性证明
 - [COMMAND_SPEC.md](docs/COMMAND_SPEC.md) — 命令与字段注册表
+- [VISUAL_STYLE.md](docs/VISUAL_STYLE.md) — 参考图解析、Design Token、组件映射、双主题与不变量
 - [ACCEPTANCE.md](docs/ACCEPTANCE.md) — 验收逐步记录
 
 ---
@@ -115,6 +121,7 @@ S0 场地基底
 | 四大面板 + 图形编辑面板 + 节点拖拽 | `src/components/` |
 | 保存、加载、撤销、重做 | `src/core/store.ts`（localStorage + 文档快照，60 步） |
 | 可运行 Demo、测试、技术文档 | `npm run dev`、93 测试、`docs/` |
+| 双主题制图风格 UI（编号 / 注记气泡 / 图例 / 比例尺 / 淡彩三维） | `src/styles.css`、`src/components/CityScene.tsx`、`docs/VISUAL_STYLE.md`、`docs/styleboard.html` |
 
 其它能力：对象拾取与单体覆写、任意走向的分级道路渲染、多边形公园三角化（含凹形）、旋转建筑足迹、地块边界线、规则/统计/管线/图形编辑四视图（共 6 个 Inspector 标签）、等轴/顶视/正视/东北 35° 半鸟瞰相机、命令日志与指纹追踪、规则变化时间线、JSON 导入导出、管线与图形编辑结构化预设、Ctrl+Z / Ctrl+Y / Ctrl+S 快捷键。
 
@@ -133,6 +140,7 @@ S0 场地基底
 | 不训练模型 / 不依赖 Text-to-3D | 无任何模型推理依赖；LLM 可选且只做意图编译 |
 | 后续阶段 | Blender Geometry Nodes、Unreal PCG、自由节点图编辑 **均未实现** |
 | 无 AI API 可用 | 本地规则解析器 + Inspector 参数/图形编辑面板 + 可手工编辑的结构化命令 JSON |
+| 视觉层与数据层隔离 | `PALETTES` 不动；淡彩化在 `CityScene.draftColor()` 渲染层完成；主题存 localStorage，不进 SceneDocument |
 
 **已知限制（不掩饰）**
 
@@ -144,6 +152,7 @@ S0 场地基底
 - 连续两次 `parcel.merge` 在长边/短边端点不匹配时可能被跳过并记入 `skippedEdits`；「删两条相邻路段」是更可靠的凹形生成路径。
 - LLM 为浏览器直连 OpenAI 兼容接口，密钥只存 localStorage；生产环境应改自有后端代理。
 - 阴影贴图 2048²、dpr 上限 1.75；低端 GPU 可在 `Viewport.tsx` 下调。
+- 制图主题为纯 CSS + WebGL 生成，未引入图片或字体资源；三维图面是淡彩平涂示意，不是参考图的手绘插画复刻。
 
 **GPU 提示（针对本机配置）**：`Canvas` 已设置 `powerPreference: 'high-performance'` 主动请求独显。双 AOC 显示器若接在核显输出上，Chrome 可能仍走核显。可在 `chrome://gpu` 查看 "Graphics Feature Status"；必要时在 Windows「图形设置」中为 Chrome 指定「高性能 GPU」。
 
@@ -165,7 +174,7 @@ worldcraft/
 │   │   │   ├── stages.ts      S0–S6 + E1/E2 全部阶段实现
 │   │   │   ├── validate.ts    空间关系校验器
 │   │   │   └── index.ts       执行器、GeneratedScene 汇总
-│   │   ├── types.ts       Scene Schema / 图 / 编辑序列 / 图层对象 / Command
+│   │   ├── types.ts       Scene Schema / 图 / 编辑序列 / 图层对象 / Command / 展示色板
 │   │   ├── schema.ts      默认规则、严格校验、v1.0/1.1 迁移
 │   │   ├── fields.ts      规则字段注册表
 │   │   ├── rng.ts         无状态哈希采样、稳定序列化、指纹
@@ -173,14 +182,17 @@ worldcraft/
 │   │   ├── commands.ts   命令白名单校验 + 纯函数执行器
 │   │   ├── nlp.ts / llm.ts / diff.ts / store.ts / zones.ts
 │   ├── components/       Viewport / CityScene / Hierarchy / Inspector / CommandPanel / TopBar
+│   ├── styles.css        制图语言双主题样式（图纸 / 海图）
 │   └── __tests__/        12 个测试文件、93 个用例
 ├── docs/
 │   ├── EDITABLE_GEOMETRY.md 可编辑图与多边形地块规范、验证结果
 │   ├── PCG_PIPELINE.md      阶段依赖、数据结构、参数项、空间契约
 │   ├── ARCHITECTURE.md      架构与确定性证明
 │   ├── COMMAND_SPEC.md      命令、字段注册表、NL 与 LLM 契约
+│   ├── VISUAL_STYLE.md      参考图解析 / Design Token / 组件映射 / 不变量
+│   ├── styleboard.html      双主题组件级视觉风格板（单文件，可直接打开）
 │   ├── ACCEPTANCE.md        验收逐步记录
-│   └── screenshots/         演示截图
+│   └── screenshots/         演示截图（改造前界面）
 └── README.md
 ```
 

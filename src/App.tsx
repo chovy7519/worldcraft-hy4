@@ -4,10 +4,22 @@ import { Hierarchy } from './components/Hierarchy';
 import { Viewport } from './components/Viewport';
 import { Inspector, type TabId } from './components/Inspector';
 import { CommandPanel } from './components/CommandPanel';
+import type { SheetTheme } from './components/CityScene';
 import { generateScene } from './core/pcg';
 import { useAppStore } from './core/store';
 import type { UiAction } from './core/nlp';
 import type { ZoneId } from './core/types';
+
+const THEME_KEY = 'worldcraft.theme';
+
+/** 主题只影响呈现层，存 localStorage，不写入 SceneDocument，因此不改变场景指纹 */
+function initialTheme(): SheetTheme {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'nautical' ? 'nautical' : 'sheet';
+  } catch {
+    return 'sheet';
+  }
+}
 
 export default function App() {
   const store = useAppStore();
@@ -15,6 +27,16 @@ export default function App() {
   const [inspectorTab, setInspectorTab] = useState<TabId>('rules');
   const [showNodes, setShowNodes] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [theme, setTheme] = useState<SheetTheme>(initialTheme);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // 隐私模式禁用存储时，主题仍在本会话内生效
+    }
+  }, [theme]);
 
   // 生成结果永远是 doc 的纯函数派生，不缓存、不落盘
   const scene = useMemo(() => generateScene(store.doc), [store.doc]);
@@ -24,6 +46,7 @@ export default function App() {
   }, []);
 
   const setTab = useCallback((t: TabId) => setInspectorTab(t), []);
+  const toggleTheme = useCallback(() => setTheme((t) => t === 'sheet' ? 'nautical' : 'sheet'), []);
 
   const onUiAction = useCallback((a: UiAction) => {
     switch (a) {
@@ -57,6 +80,7 @@ export default function App() {
         doc={store.doc} scene={scene} statusMessage={store.statusMessage}
         canUndo={store.past.length > 0} canRedo={store.future.length > 0}
         llmEnabled={store.llmConfig.enabled && Boolean(store.llmConfig.apiKey)}
+        theme={theme} toggleTheme={toggleTheme}
         undo={store.undo} redo={store.redo} save={store.save} load={store.load}
         exportJSON={store.exportJSON} importJSON={store.importJSON} reset={store.reset}
       />
@@ -69,7 +93,7 @@ export default function App() {
       />
 
       <Viewport
-        doc={store.doc} scene={scene}
+        doc={store.doc} scene={scene} theme={theme}
         selectedId={store.selectedId} onSelect={store.select}
         cameraPreset={store.cameraPreset} cameraNonce={store.cameraNonce} setCamera={store.setCamera}
         viewMode={store.viewMode} setViewMode={store.setViewMode}

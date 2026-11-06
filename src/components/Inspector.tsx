@@ -387,7 +387,7 @@ export function Inspector(props: InspectorProps) {
             <div className="section">
               <div className="section-title">空间无重叠校验</div>
               <div className="section-body">
-                <div className={`inline-note`} style={{ borderColor: scene.spatial.ok ? '#2c5540' : '#5c322e', color: scene.spatial.ok ? 'var(--green)' : 'var(--red)' }}>
+                <div className="inline-note" style={{ borderLeftColor: scene.spatial.ok ? 'var(--green)' : 'var(--red)', color: scene.spatial.ok ? 'var(--green)' : 'var(--red)' }}>
                   {scene.spatial.ok ? 'PASS · 全链路无空间冲突' : `${scene.spatial.issues.length} 处冲突`}
                   <div className="small muted mt6">
                     最小株距 {scene.spatial.minTreeSpacing} m（要求 ≥ {doc.rules.pipeline.trees.minSpacing} m）·

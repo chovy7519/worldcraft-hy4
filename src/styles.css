@@ -220,7 +220,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .tree-row .count { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
 .tree-row .eye { background: none; border: none; color: var(--ink-3); padding: 0 2px; font-size: 11px; }
 .tree-row .eye:hover { color: var(--red); }
-.swatch { width: 8px; height: 8px; border-radius: 0; flex: none; border: 1px solid var(--rule); }
+.swatch { width: 8px; height: 8px; border-radius: 0; flex: none; border: 1px solid var(--rule); filter: saturate(.7) brightness(1.06); }
 .tree-note {
   padding: 9px 11px; color: var(--ink-3); font-size: 11px; line-height: 1.65;
   border-top: 1px solid var(--rule); background: var(--paper-3);

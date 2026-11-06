@@ -1,9 +1,11 @@
 /**
- * 三维场景渲染层（v1.2.0 可编辑几何版）。
+ * 三维场景渲染层（v1.2.0 可编辑几何版 / 制图语言配色 v1.0）。
  * - 道路段支持任意走向（实例矩阵带 Y 旋转）
  * - 建筑旋转足迹贴合斜向/多边形地块（实例矩阵带 Y 旋转）
  * - 公园用 earcut 三角化后的合并 BufferGeometry，可渲染凹多边形
  * - 地块边界用单个 LineSegments；道路节点用实例球体，可点击/拖拽
+ * - 颜色为纯呈现层变换：draftColor() 把数据层材质色重映射为淡彩，
+ *   不改写 SceneDocument、不参与场景指纹（见 docs/VISUAL_STYLE.md §3 判断三）
  */
 import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
@@ -12,6 +14,9 @@ import {
   type BuildingObject, type GeneratedScene, type ParkObject, type SceneDocument,
 } from '../core/types';
 import type { ViewMode } from '../core/store';
+
+/** 图面主题：sheet = 浅色图纸（参考图 2/3/4/5），nautical = 深色海图（参考图 1） */
+export type SheetTheme = 'sheet' | 'nautical';
 
 interface CitySceneProps {
   doc: SceneDocument;
@@ -25,11 +30,74 @@ interface CitySceneProps {
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onNodeDragEnd: (id: string, x: number, z: number) => void;
+  theme: SheetTheme;
 }
 
 const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();
+const draftTmp = new THREE.Color();
 interface Instance { matrix: THREE.Matrix4; color: THREE.Color }
+
+interface ThemePalette {
+  bg: string; ground: string; plinth: string;
+  grid1: string; grid2: string;
+  roadMain: string; roadMinor: string;
+  parkStyles: Record<string, string>;
+  water: string; trunk: string;
+  canopy: string[]; canopyStreet: string[];
+  node: string; nodeSelected: string;
+  parcelLine: string; selectLine: string;
+  hemiSky: string; hemiGround: string;
+  emissive: string;
+}
+
+/** 依据 docs/VISUAL_STYLE.md §6 的三维视口配色映射表 */
+const THEME: Record<SheetTheme, ThemePalette> = {
+  sheet: {
+    bg: '#edebe1', ground: '#e8e6d9', plinth: '#d9d6c7',
+    grid1: '#cfcdbf', grid2: '#dedccf',
+    roadMain: '#fcfbf6', roadMinor: '#f1efe5',
+    parkStyles: { park: '#c3d9ae', plaza: '#dfddd0', water: '#8fb8c8' },
+    water: '#8fb8c8', trunk: '#a9987c',
+    canopy: ['#9fc48a', '#b7d59c', '#8db87c', '#c6dca8'],
+    canopyStreet: ['#a8c894', '#b6d3a0', '#96bd86', '#c2d8ab'],
+    node: '#d9634f', nodeSelected: '#e8e44a',
+    parcelLine: '#d9634f', selectLine: '#d9634f',
+    hemiSky: '#ffffff', hemiGround: '#d8d5c6',
+    emissive: '#fff4d6',
+  },
+  nautical: {
+    bg: '#20505c', ground: '#235662', plinth: '#19434d',
+    grid1: '#3d7783', grid2: '#2d626f',
+    roadMain: '#6e9ba5', roadMinor: '#4e7f8a',
+    parkStyles: { park: '#5e8c7e', plaza: '#7d9490', water: '#4e93a8' },
+    water: '#4e93a8', trunk: '#7c8a7e',
+    canopy: ['#6e9c8a', '#82ad96', '#5d8b7c', '#93b9a3'],
+    canopyStreet: ['#75a28f', '#87b09b', '#679483', '#9abfaa'],
+    node: '#e8e44a', nodeSelected: '#e8836c',
+    parcelLine: '#e8e44a', selectLine: '#e8e44a',
+    hemiSky: '#cfe6e8', hemiGround: '#19434d',
+    emissive: '#7fd0e0',
+  },
+};
+
+/**
+ * 材质视图的淡彩化：保留原色相（future=蓝 / warm=赭 / concrete=灰 / mono=白），
+ * 压低饱和度并抬到纸面明度区间；高度越高略亮，模拟参考图的屋顶亮部。
+ * 仅作用于渲染，不回写 b.color，因此场景指纹不变。
+ */
+function draftColor(hex: string, theme: SheetTheme, heightRatio = 0): string {
+  draftTmp.set(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  draftTmp.getHSL(hsl);
+  const dark = theme === 'nautical';
+  draftTmp.setHSL(
+    hsl.h,
+    Math.min(dark ? 0.46 : 0.42, hsl.s * (dark ? 0.8 : 0.55)),
+    (dark ? 0.42 + hsl.l * 0.26 : 0.70 + hsl.l * 0.16) + heightRatio * (dark ? 0.04 : 0.05),
+  );
+  return `#${draftTmp.getHexString()}`;
+}
 
 function useInstances(ref: RefObject<THREE.InstancedMesh>, items: Instance[]): void {
   useLayoutEffect(() => {
@@ -54,19 +122,17 @@ function matrixOf(x: number, y: number, z: number, sx: number, sy: number, sz: n
   return dummy.matrix.clone();
 }
 
-const PARK_STYLE_COLORS: Record<string, string> = { park: '#2b7350', plaza: '#7a858f', water: '#1f6a8c' };
-const TREE_CANOPY = ['#3a9163', '#4baa76', '#2f875e', '#5cb683'];
-
 /** 所有公园多边形三角化后合并为一个几何体，支持凹形 */
-function parkGeometry(parks: ParkObject[]): THREE.BufferGeometry {
+function parkGeometry(parks: ParkObject[], theme: SheetTheme): THREE.BufferGeometry {
   const positions: number[] = []; const colors: number[] = [];
+  const styles = THEME[theme].parkStyles;
   for (const park of parks) {
     if (park.polygon.length < 3) continue;
     let pts = park.polygon.map((q) => new THREE.Vector2(q.x, q.z));
     if (THREE.ShapeUtils.isClockWise(pts)) pts = pts.reverse();
     let faces: number[][];
     try { faces = THREE.ShapeUtils.triangulateShape(pts, []); } catch { continue; }
-    const col = tmpColor.clone().set(PARK_STYLE_COLORS[park.style] ?? PARK_STYLE_COLORS.park);
+    const col = tmpColor.clone().set(styles[park.style] ?? styles.park);
     for (const tri of faces) {
       for (const idx of tri) {
         positions.push(pts[idx].x, 0.14, pts[idx].y);
@@ -99,8 +165,9 @@ function parcelLineGeometry(scene: GeneratedScene): THREE.BufferGeometry {
 export function CityScene(props: CitySceneProps) {
   const {
     doc, scene, selectedId, onSelect, viewMode, hiddenZones, hiddenGroups,
-    showNodes, selectedNodeId, onSelectNode, onNodeDragEnd,
+    showNodes, selectedNodeId, onSelectNode, onNodeDragEnd, theme,
   } = props;
+  const T = THEME[theme];
   const { width, depth } = doc.rules.terrain;
   const span = Math.max(width, depth);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -113,44 +180,47 @@ export function CityScene(props: CitySceneProps) {
     matrix: matrixOf(b.x, b.h / 2, b.z, b.w, b.h, b.d, -b.orientation),
     color: tmpColor.clone().set(
       viewMode === 'zone' ? ZONE_COLORS[b.zone]
-        : viewMode === 'parcel' ? LAND_USE_COLORS[b.landUse] : b.color,
+        : viewMode === 'parcel' ? LAND_USE_COLORS[b.landUse]
+          : draftColor(b.color, theme, Math.min(1, b.h / 90)),
     ),
-  })), [visibleBuildings, viewMode]);
+  })), [visibleBuildings, viewMode, theme]);
   const roofInstances = useMemo<Instance[]>(() => visibleBuildings.filter((b) => b.roof !== 'flat').map((b) => {
     const antenna = b.roof === 'antenna';
     return {
       matrix: matrixOf(b.x, b.h + (antenna ? 3.2 : 0.7), b.z,
         antenna ? 0.5 : b.w * 0.66, antenna ? 6.4 : 1.4, antenna ? 0.5 : b.d * 0.66, -b.orientation),
-      color: tmpColor.clone().set(b.color).multiplyScalar(1.4),
+      color: tmpColor.clone().set(draftColor(b.color, theme, 0.6)).multiplyScalar(theme === 'sheet' ? 1.06 : 1.12),
     };
-  }), [visibleBuildings]);
+  }), [visibleBuildings, theme]);
 
   const roadInstances = useMemo<Instance[]>(() => {
     if (hiddenGroups.includes('roads')) return [];
     return scene.roads.map((r) => ({
       matrix: matrixOf(r.x, 0.05, r.z, r.length, 0.1, r.d, -r.angle),
-      color: tmpColor.clone().set(r.cls === 'arterial' ? '#34495a' : '#25333f'),
+      color: tmpColor.clone().set(r.cls === 'arterial' ? T.roadMain : T.roadMinor),
     }));
-  }, [scene.roads, hiddenGroups]);
+  }, [scene.roads, hiddenGroups, T]);
 
   const showTrees = !hiddenGroups.includes('trees');
   const trunks = useMemo<Instance[]>(() => !showTrees ? [] : scene.trees.map((t) => ({
     matrix: matrixOf(t.x, 1.1 * t.scale + 0.1, t.z, 0.42 * t.scale, 2.2 * t.scale, 0.42 * t.scale),
-    color: tmpColor.clone().set('#4b3d30'),
-  })), [scene.trees, showTrees]);
+    color: tmpColor.clone().set(T.trunk),
+  })), [scene.trees, showTrees, T]);
   const canopies = useMemo<Instance[]>(() => !showTrees ? [] : scene.trees.map((t) => ({
     matrix: matrixOf(t.x, 4.2 * t.scale + 0.1, t.z, 2.4 * t.scale, 5.8 * t.scale, 2.4 * t.scale),
-    color: tmpColor.clone().set(t.context === 'street'
-      ? ['#4f9e6f', '#57a97a', '#438c62', '#63b184'][t.hash % 4] : TREE_CANOPY[t.hash % 4]),
-  })), [scene.trees, showTrees]);
+    color: tmpColor.clone().set((t.context === 'street' ? T.canopyStreet : T.canopy)[t.hash % 4]),
+  })), [scene.trees, showTrees, T]);
 
   const nodes = useMemo(() => showNodes ? scene.graphNodes : [], [showNodes, scene.graphNodes]);
   const nodeInstances = useMemo<Instance[]>(() => nodes.map((n) => ({
     matrix: matrixOf(n.x, 1.6, n.z, 2.4, 2.4, 2.4),
-    color: tmpColor.clone().set(n.id === selectedNodeId ? '#ffdf7a' : '#ef9a4a'),
-  })), [nodes, selectedNodeId]);
+    color: tmpColor.clone().set(n.id === selectedNodeId ? T.nodeSelected : T.node),
+  })), [nodes, selectedNodeId, T]);
 
-  const parkGeom = useMemo(() => !hiddenGroups.includes('parks') ? parkGeometry(scene.parks) : null, [scene.parks, hiddenGroups]);
+  const parkGeom = useMemo(
+    () => !hiddenGroups.includes('parks') ? parkGeometry(scene.parks, theme) : null,
+    [scene.parks, hiddenGroups, theme],
+  );
   const outlineGeom = useMemo(
     () => viewMode === 'parcel' && !hiddenGroups.includes('parcels') ? parcelLineGeometry(scene) : null,
     [viewMode, scene, hiddenGroups],
@@ -158,8 +228,8 @@ export function CityScene(props: CitySceneProps) {
   const waterInstances = useMemo<Instance[]>(() => scene.water.map((w) => ({
     matrix: matrixOf((w.bounds.minX + w.bounds.maxX) / 2, 0.16, (w.bounds.minZ + w.bounds.maxZ) / 2,
       w.bounds.maxX - w.bounds.minX, 0.04, w.bounds.maxZ - w.bounds.minZ),
-    color: tmpColor.clone().set('#2b7fa8'),
-  })), [scene.water]);
+    color: tmpColor.clone().set(T.water),
+  })), [scene.water, T]);
 
   const buildingRef = useRef<THREE.InstancedMesh>(null);
   const roofRef = useRef<THREE.InstancedMesh>(null);
@@ -181,11 +251,11 @@ export function CityScene(props: CitySceneProps) {
 
   return (
     <>
-      <color attach="background" args={['#0a121a']} />
-      <fog attach="fog" args={['#0a121a', span * 1.25, span * 3.1]} />
-      <ambientLight intensity={0.55} />
-      <hemisphereLight args={['#bcd9f5', '#14202a', 0.75]} />
-      <directionalLight position={[span * 0.55, span * 0.9, span * 0.32]} intensity={1.55}
+      <color attach="background" args={[T.bg]} />
+      <fog attach="fog" args={[T.bg, span * 1.25, span * 3.1]} />
+      <ambientLight intensity={0.85} />
+      <hemisphereLight args={[T.hemiSky, T.hemiGround, 0.6]} />
+      <directionalLight position={[span * 0.55, span * 0.9, span * 0.32]} intensity={0.9}
         castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048}
         shadow-camera-left={-span * 0.72} shadow-camera-right={span * 0.72}
         shadow-camera-top={span * 0.72} shadow-camera-bottom={-span * 0.72}
@@ -193,54 +263,54 @@ export function CityScene(props: CitySceneProps) {
 
       <mesh position={[0, -0.7, 0]} receiveShadow>
         <boxGeometry args={[width + 10, 1.3, depth + 10]} />
-        <meshStandardMaterial color="#0d1620" roughness={1} />
+        <meshStandardMaterial color={T.plinth} roughness={1} metalness={0} />
       </mesh>
       {!hiddenGroups.includes('terrain') && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
           <planeGeometry args={[width, depth]} />
-          <meshStandardMaterial color="#14212b" roughness={0.96} metalness={0.05} />
+          <meshStandardMaterial color={T.ground} roughness={1} metalness={0} />
         </mesh>
       )}
-      <gridHelper args={[span, Math.max(4, Math.round(span / 20)), '#2b4657', '#1b2c37']} position={[0, 0.015, 0]} />
+      <gridHelper args={[span, Math.max(4, Math.round(span / 20)), T.grid1, T.grid2]} position={[0, 0.015, 0]} />
 
       {/* S1 任意走向的分级道路 */}
       <instancedMesh key={`roads-${roadInstances.length}`} ref={roadRef} args={[undefined, undefined, Math.max(1, roadInstances.length)]} frustumCulled={false} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.92} metalness={0.05} />
+        <meshStandardMaterial color="#ffffff" roughness={1} metalness={0} />
       </instancedMesh>
 
       {/* S4b 多边形公园（含凹形），一次 draw call */}
       {parkGeom && (
         <mesh geometry={parkGeom} receiveShadow frustumCulled={false}>
-          <meshStandardMaterial vertexColors side={THREE.DoubleSide} emissive="#103522" emissiveIntensity={0.55} roughness={0.9} />
+          <meshStandardMaterial vertexColors side={THREE.DoubleSide} roughness={1} metalness={0} />
         </mesh>
       )}
 
       {/* E1 水系占位 */}
       <instancedMesh key={`water-${waterInstances.length}`} ref={waterRef} args={[undefined, undefined, Math.max(1, waterInstances.length)]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#ffffff" transparent opacity={0.72} roughness={0.16} metalness={0.5} />
+        <meshStandardMaterial color="#ffffff" transparent opacity={0.85} roughness={0.6} metalness={0} />
       </instancedMesh>
 
       {/* S2 地块红线 */}
       {outlineGeom && (
         <lineSegments geometry={outlineGeom} frustumCulled={false}>
-          <lineBasicMaterial color="#8fd3ff" transparent opacity={0.62} depthTest={false} />
+          <lineBasicMaterial color={T.parcelLine} transparent opacity={0.85} depthTest={false} />
         </lineSegments>
       )}
 
       {/* S5 乔木 */}
       <instancedMesh key={`trunks-${trunks.length}`} ref={trunkRef} args={[undefined, undefined, Math.max(1, trunks.length)]} frustumCulled={false} castShadow>
         <cylinderGeometry args={[0.5, 0.6, 1, 6]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.95} />
+        <meshStandardMaterial color="#ffffff" roughness={1} metalness={0} />
       </instancedMesh>
       <instancedMesh key={`canopy-${canopies.length}`} ref={canopyRef} args={[undefined, undefined, Math.max(1, canopies.length)]} frustumCulled={false} castShadow>
         <coneGeometry args={[1, 1, 7]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.85} />
+        <meshStandardMaterial color="#ffffff" roughness={1} metalness={0} />
       </instancedMesh>
 
       {/* S4a 旋转建筑足迹 */}
-      <instancedMesh key={`bld-${buildingInstances.length}-${viewMode}`} ref={buildingRef}
+      <instancedMesh key={`bld-${buildingInstances.length}-${viewMode}-${theme}`} ref={buildingRef}
         args={[undefined, undefined, Math.max(1, buildingInstances.length)]} frustumCulled={false} castShadow receiveShadow
         onClick={(e) => {
           e.stopPropagation();
@@ -248,16 +318,17 @@ export function CityScene(props: CitySceneProps) {
           if (b) onSelect(b.id);
         }}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.38} metalness={0.42} emissive="#0d2b3d" emissiveIntensity={doc.rules.material.emissive} />
+        <meshStandardMaterial color="#ffffff" roughness={0.95} metalness={0}
+          emissive={T.emissive} emissiveIntensity={doc.rules.material.emissive * 0.22} />
       </instancedMesh>
       <instancedMesh key={`roof-${roofInstances.length}`} ref={roofRef} args={[undefined, undefined, Math.max(1, roofInstances.length)]} frustumCulled={false} castShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.3} metalness={0.6} />
+        <meshStandardMaterial color="#ffffff" roughness={0.95} metalness={0} />
       </instancedMesh>
 
       {/* 可拖拽的道路节点手柄 */}
       {showNodes && (
-        <instancedMesh key={`nodes-${nodeInstances.length}-${selectedNodeId}`} ref={nodeRef}
+        <instancedMesh key={`nodes-${nodeInstances.length}-${selectedNodeId}-${theme}`} ref={nodeRef}
           args={[undefined, undefined, Math.max(1, nodeInstances.length)]} frustumCulled={false}
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -296,7 +367,7 @@ export function CityScene(props: CitySceneProps) {
         <mesh position={[selected.x, selected.h / 2, selected.z]} rotation={[0, -selected.orientation, 0]}
           scale={[selected.w + 1.4, selected.h + 1.4, selected.d + 1.4]}>
           <boxGeometry args={[1, 1, 1]} />
-          <meshBasicMaterial color="#ffc65a" wireframe transparent opacity={0.95} depthTest={false} />
+          <meshBasicMaterial color={T.selectLine} wireframe transparent opacity={0.95} depthTest={false} />
         </mesh>
       )}
     </>

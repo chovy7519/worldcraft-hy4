@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="sheet">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WorldCraft — 制图语言风格板 v1.0</title>
+<style>
+  :root, :root[data-theme='sheet'] {
+    --paper:#f3f1e8; --paper-2:#fbfaf4; --paper-3:#eae7da;
+    --ink:#2b332e; --ink-2:#59635a; --ink-3:#8b9388;
+    --rule:#c9cbbe; --rule-soft:#dfded2;
+    --grid:rgba(43,51,46,.05); --grid-2:rgba(43,51,46,.028);
+    --accent:#e8e44a; --accent-soft:#f4f2bd;
+    --red:#d9634f; --red-soft:#f6e0da;
+    --green:#6e9a58; --green-soft:#e4eddb;
+    --amber:#c58a54; --amber-soft:#f2e6d4;
+    --purple:#a68cb8; --teal:#4e93a8; --teal-soft:#dcebef;
+    --iso-top:#e9b3ac; --iso-l:#d99d95; --iso-r:#c98c85;
+    --iso-top2:#bcd4c4; --iso-l2:#a5c1ae; --iso-r2:#93b09d;
+    --iso-top3:#e6cd9a; --iso-l3:#d6ba84; --iso-r3:#c4a771;
+    --iso-top4:#b9cdd9; --iso-l4:#a2b9c6; --iso-r4:#8fa7b4;
+    --iso-top5:#c9b6d5; --iso-l5:#b39fc1; --iso-r5:#9f8bac;
+    --iso-park:#c3d9ae; --iso-water:#8fb8c8; --iso-tree:#4d7652;
+    --scheme:light;
+  }
+  :root[data-theme='nautical'] {
+    --paper:#224f5b; --paper-2:#2b5f6b; --paper-3:#1b414c;
+    --ink:#f2f6f4; --ink-2:#c4d6d8; --ink-3:#8fb0b4;
+    --rule:rgba(242,246,244,.34); --rule-soft:rgba(242,246,244,.16);
+    --grid:rgba(242,246,244,.055); --grid-2:rgba(242,246,244,.03);
+    --accent:#e8e44a; --accent-soft:rgba(232,228,74,.2);
+    --red:#e8836c; --red-soft:rgba(232,131,108,.16);
+    --green:#9ec9a0; --green-soft:rgba(158,201,160,.16);
+    --amber:#dfb57a; --amber-soft:rgba(223,181,122,.16);
+    --purple:#c2aad2; --teal:#8fc8d8; --teal-soft:rgba(143,200,216,.16);
+    --iso-top:#d99890; --iso-l:#b87872; --iso-r:#9d625d;
+    --iso-top2:#8ab5a2; --iso-l2:#6d9a89; --iso-r2:#587f70;
+    --iso-top3:#cdb17e; --iso-l3:#ab9062; --iso-r3:#8a734e;
+    --iso-top4:#8fb2c2; --iso-l4:#6f94a5; --iso-r4:#577b8b;
+    --iso-top5:#ae97c1; --iso-l5:#8e78a2; --iso-r5:#715e84;
+    --iso-park:#5e8c7e; --iso-water:#4e93a8; --iso-tree:#2f5a51;
+    --scheme:dark;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; color-scheme:var(--scheme);
+    background-color:var(--paper);
+    background-image:
+      repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 20px),
+      repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 20px);
+    color:var(--ink);
+    font-family:'Helvetica Neue',Helvetica,Arial,'PingFang SC','Microsoft YaHei',sans-serif;
+    font-size:13px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .mono { font-family:'IBM Plex Mono','JetBrains Mono','Cascadia Code',Consolas,monospace; }
+  .wrap { max-width:1180px; margin:0 auto; padding:28px 26px 60px; }
+
+  /* 图签 */
+  .sheet-head {
+    border:1px solid var(--ink-3); background:var(--paper-2); padding:18px 20px 16px;
+    position:relative; box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px var(--rule);
+  }
+  .sheet-head h1 { margin:0; font-size:26px; letter-spacing:.16em; font-weight:700; text-transform:uppercase; }
+  .sheet-head .kicker { font-size:10.5px; letter-spacing:.24em; color:var(--ink-3); text-transform:uppercase; }
+  .sheet-head .sub { margin-top:9px; color:var(--ink-2); font-size:12px; max-width:720px; }
+  .sheet-head .folio { position:absolute; right:20px; bottom:16px; font-size:11px; color:var(--ink-3); }
+  .theme-switch { position:absolute; right:20px; top:18px; display:flex; gap:0; }
+  .theme-switch button {
+    border:1px solid var(--rule); background:var(--paper-2); color:var(--ink-2);
+    padding:5px 12px; font-size:11px; cursor:pointer; font-family:inherit;
+  }
+  .theme-switch button + button { border-left:none; }
+  .theme-switch button.on { background:var(--accent); color:#2b332e; border-color:var(--ink); font-weight:700; }
+
+  /* 分区 */
+  .sec { margin-top:26px; border:1px solid var(--rule); background:var(--paper-2); }
+  .sec-head {
+    display:flex; align-items:center; gap:10px; padding:9px 14px;
+    background:var(--paper-3); border-bottom:1px solid var(--rule);
+  }
+  .sec-head .no { font-family:'IBM Plex Mono',Consolas,monospace; font-size:11px; color:var(--ink-3); }
+  .sec-head h2 { margin:0; font-size:11px; letter-spacing:.16em; font-weight:700; text-transform:uppercase; }
+  .sec-head .note { margin-left:auto; font-size:10.5px; color:var(--ink-3); }
+  .sec-body { padding:16px 16px 18px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  .three { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .label { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); margin:0 0 9px; }
+
+  /* 色板 */
+  .sw-row { display:flex; align-items:center; gap:9px; padding:5px 0; border-bottom:1px solid var(--rule-soft); }
+  .sw { width:34px; height:20px; border:1px solid var(--rule); flex:none; }
+  .sw-row .nm { flex:1; font-size:11.5px; }
+  .sw-row .hx { font-family:'IBM Plex Mono',Consolas,monospace; font-size:10.5px; color:var(--ink-3); }
+
+  /* 排版 */
+  .type-l { font-size:22px; letter-spacing:.14em; font-weight:700; text-transform:uppercase; margin:0 0 6px; }
+  .type-m { font-size:12px; letter-spacing:.1em; font-weight:600; margin:0 0 10px; }
+  .type-body { font-size:12.5px; line-height:1.75; color:var(--ink-2); margin:0 0 8px; }
+  .type-data { font-family:'IBM Plex Mono',Consolas,monospace; font-size:11px; color:var(--ink); }
+  mark { background:var(--accent); color:#2b332e; padding:0 3px; }
+
+  /* 注记气泡 */
+  .bubble {
+    position:relative; background:var(--paper-2); border:1px solid var(--rule); border-radius:2px;
+    padding:10px 12px; font-size:11px; line-height:1.65; color:var(--ink-2); max-width:280px;
+  }
+  .bubble::before,.bubble::after {
+    content:''; position:absolute; left:24px; width:0; height:0;
+    border-left:8px solid transparent; border-top:9px solid var(--rule);
+  }
+  .bubble::before { bottom:-9px; }
+  .bubble::after { bottom:-8px; border-top-color:var(--paper-2); }
+  .bubble b { color:var(--ink); }
+  .bubble-stack { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; padding-bottom:14px; }
+  .arrow-row { display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',Consolas,monospace; font-size:11px; color:var(--ink-3); }
+  .arrow-row .a { font-size:20px; color:var(--ink); }
+
+  /* 控件 */
+  .btn {
+    height:28px; padding:0 12px; border:1px solid var(--rule); background:var(--paper-2);
+    color:var(--ink-2); font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
+  .btn:hover { border-color:var(--ink-3); color:var(--ink); }
+  .btn.primary { background:var(--ink); color:var(--paper-2); border-color:var(--ink); font-weight:600; }
+  .btn.active { background:var(--accent); color:#2b332e; border-color:var(--ink); font-weight:700; }
+  .btn:disabled { opacity:.36; cursor:not-allowed; }
+  .btn-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .inp {
+    width:100%; background:var(--paper-2); border:1px solid var(--rule);
+    padding:7px 9px; font-family:inherit; font-size:12px; color:var(--ink); outline:none;
+  }
+  .inp:focus { border-color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  .chip {
+    display:inline-block; border:1px solid var(--rule); background:var(--paper-2);
+    color:var(--ink-2); padding:4px 10px; font-size:11px; margin:0 5px 6px 0;
+  }
+  .chip.hot { border-color:var(--red); color:var(--red); }
+  .tag {
+    display:inline-block; font-family:'IBM Plex Mono',Consolas,monospace; font-size:10px;
+    padding:2px 7px; border:1px solid var(--rule); color:var(--ink-2); margin-right:5px;
+  }
+  .tag.amber { background:var(--accent); color:#2b332e; border-color:var(--ink); font-weight:700; }
+  .tag.accent { color:var(--red); border-color:var(--red); }
+  .tag.green { color:var(--green); border-color:var(--green); background:var(--green-soft); }
+  .toggle { display:inline-flex; align-items:center; gap:8px; font-size:11.5px; }
+  .track { width:30px; height:15px; border:1px solid var(--rule); background:var(--paper-3); position:relative; }
+  .track::after { content:''; position:absolute; top:2px; left:2px; width:9px; height:9px; background:var(--ink-3); }
+  .track.on { background:var(--accent); border-color:var(--ink); }
+  .track.on::after { transform:translateX(15px); background:var(--ink); }
+  input[type=range] { width:100%; -webkit-appearance:none; appearance:none; height:2px; background:var(--rule); outline:none; margin:12px 0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:9px; height:15px; background:var(--ink); border:1px solid var(--paper-2); cursor:pointer; }
+
+  /* 数据 */
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th { text-align:left; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:500; padding:6px 5px; border-bottom:1px solid var(--rule); }
+  td { padding:7px 5px; border-bottom:1px solid var(--rule-soft); }
+  td.num { font-family:'IBM Plex Mono',Consolas,monospace; text-align:right; }
+  .stat { display:flex; gap:1px; background:var(--rule-soft); margin-bottom:14px; }
+  .stat > div { flex:1; background:var(--paper-2); padding:9px 11px; }
+  .stat .k { font-size:10px; color:var(--ink-3); letter-spacing:.06em; }
+  .stat .v { font-family:'IBM Plex Mono',Consolas,monospace; font-size:18px; font-weight:600; }
+  .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--ink-2); align-items:center; }
+  .legend i { display:inline-block; width:9px; height:9px; border:1px solid var(--rule); margin-right:5px; vertical-align:-1px; }
+  .scale { display:flex; align-items:flex-end; gap:8px; font-family:'IBM Plex Mono',Consolas,monospace; font-size:10px; color:var(--ink-2); margin-top:14px; }
+  .scale .bar { width:100px; height:8px; border:1px solid var(--ink); border-top:none; background:repeating-linear-gradient(90deg,var(--ink) 0 1px,transparent 1px 25px) bottom/100% 3px repeat-x; }
+
+  /* 图案纹理 */
+  .pat { height:64px; border:1px solid var(--rule); }
+  .pat-hatch { background:repeating-linear-gradient(45deg,var(--red-soft) 0 1px,transparent 1px 6px); }
+  .pat-dot { background:radial-gradient(var(--ink-3) .8px,transparent .8px) 0 0/6px 6px; }
+  .pat-grid { background:repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 12px),repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 12px); }
+  .pat-iso { background:repeating-linear-gradient(45deg,transparent 0 9px,var(--rule) 9px 10px,transparent 10px 20px),repeating-linear-gradient(-45deg,transparent 0 9px,var(--rule) 9px 10px,transparent 10px 20px); }
+
+  /* 等距图面 */
+  .iso-frame { position:relative; border:1px solid var(--rule); background:var(--paper); padding:6px; }
+  .iso-frame svg { display:block; width:100%; height:auto; }
+  .iso-frame .corner { position:absolute; inset:8px; pointer-events:none;
+    background:
+      linear-gradient(var(--ink-3),var(--ink-3)) 0 0/14px 1px no-repeat,
+      linear-gradient(var(--ink-3),var(--ink-3)) 0 0/1px 14px no-repeat,
+      linear-gradient(var(--ink-3),var(--ink-3)) 100% 0/14px 1px no-repeat,
+      linear-gradient(var(--ink-3),var(--ink-3)) 100% 0/1px 14px no-repeat,
+      linear-gradient(var(--ink-3),var(--ink-3)) 0 100%/14px 1px no-repeat,
+      linear-gradient(var(--ink-3),var(--ink-3)) 0 100%/1px 14px no-repeat,
+      linear-gradient(var(--ink-3),var(--ink-3)) 100% 100%/14px 1px no-repeat,
+      linear-gradient(var(--ink-3),var(--ink-3)) 100% 100%/1px 14px no-repeat;
+  }
+  .iso-ground { fill:var(--paper); stroke:var(--rule); stroke-width:1; }
+  .iso-line { stroke:var(--rule); stroke-width:.7; fill:none; }
+  .iso-park { fill:var(--iso-park); }
+  .iso-water { fill:var(--iso-water); }
+  .iso-tree { fill:var(--iso-tree); }
+  .iso-top { stroke:var(--paper-2); stroke-width:.6; }
+  .iso-side { stroke:var(--paper-2); stroke-width:.6; }
+  .t0 { fill:var(--iso-top); } .l0 { fill:var(--iso-l); } .r0 { fill:var(--iso-r); }
+  .t1 { fill:var(--iso-top2); } .l1 { fill:var(--iso-l2); } .r1 { fill:var(--iso-r2); }
+  .t2 { fill:var(--iso-top3); } .l2 { fill:var(--iso-l3); } .r2 { fill:var(--iso-r3); }
+  .t3 { fill:var(--iso-top4); } .l3 { fill:var(--iso-l4); } .r3 { fill:var(--iso-r4); }
+  .t4 { fill:var(--iso-top5); } .l4 { fill:var(--iso-l5); } .r4 { fill:var(--iso-r5); }
+  .iso-note { position:absolute; left:14px; bottom:12px; background:var(--paper-2); border:1px solid var(--rule); padding:5px 9px; font-family:'IBM Plex Mono',Consolas,monospace; font-size:10px; color:var(--ink-3); }
+
+  .foot { margin-top:26px; border-top:1px solid var(--rule); padding-top:12px; display:flex; justify-content:space-between; font-size:10.5px; color:var(--ink-3); }
+  @media (max-width:820px) { .two,.three { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="sheet-head">
+    <div class="kicker">WorldCraft / Visual System / Reference Study</div>
+    <h1>Drawing Language</h1>
+    <div class="sub">五张参考图的共性不是配色，而是<b>建筑制图的表达语法</b>：编号、引线、图例、比例尺、线稿、图案填充。本页把这套语法翻译成可操作的界面组件，提供「浅色图纸 / 深色海图」双主题对照。</div>
+    <div class="theme-switch">
+      <button id="btn-sheet" class="on" type="button">◑ 图纸</button>
+      <button id="btn-nautical" type="button">◐ 海图</button>
+    </div>
+    <div class="folio mono">SHEET 01 / 01 &nbsp;·&nbsp; v1.0</div>
+  </header>
+
+  <section class="sec">
+    <div class="sec-head"><span class="no">01 /</span><h2>色板 · Palette</h2><span class="note">低饱和大面积 + 极少量高饱和强调</span></div>
+    <div class="sec-body two">
+      <div><p class="label">纸 / 墨 / 线</p><div id="pal-neutral"></div></div>
+      <div><p class="label">功能色 · 面积占比 &lt; 5%</p><div id="pal-accent"></div></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><span class="no">02 /</span><h2>排版 · Typography</h2><span class="note">拉丁大写 + 字距；数据等宽；中文细体</span></div>
+    <div class="sec-body two">
+      <div>
+        <p class="type-l">Proximity Island</p>
+        <p class="type-m">01 / 场地基底与道路网络</p>
+        <p class="type-body">图名用无衬线 600、<span class="mono">letter-spacing .14em</span>、全大写；分区标题前置等宽编号。正文保持 12–13px，中文不强行加粗，靠字距与留白建立层级。</p>
+        <p class="type-body">关键词用 <mark>荧光黄高亮</mark>，不靠斜体或下划线。<span class="type-data">381A0250 · 150 BLD · 241 PARCELS · PASS</span></p>
+      </div>
+      <div>
+        <p class="label">尺度对照</p>
+        <div class="sw-row"><span style="font-size:22px;letter-spacing:.14em;font-weight:700">26 / 图名</span><span class="hx" style="margin-left:auto">A</span></div>
+        <div class="sw-row"><span style="font-size:13px;letter-spacing:.1em;font-weight:600">13 / 分区标题</span><span class="hx" style="margin-left:auto">B</span></div>
+        <div class="sw-row"><span style="font-size:12.5px">12.5 / 正文</span><span class="hx" style="margin-left:auto">C</span></div>
+        <div class="sw-row"><span class="mono" style="font-size:11px">11 / 数据 · 等宽</span><span class="hx" style="margin-left:auto">D</span></div>
+        <div class="sw-row"><span class="mono" style="font-size:10px;color:var(--ink-3)">10 / 注记 · 单位</span><span class="hx" style="margin-left:auto">E</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><span class="no">03 /</span><h2>注记系统 · Annotation</h2><span class="note">来自参考图 1 的白线气泡 / 参考图 5 的发散箭头</span></div>
+    <div class="sec-body">
+      <div class="bubble-stack">
+        <div class="bubble"><b>FABRICATION</b> — 独立平台构成散布网络，每个平台承担海洋养殖与海洋生活的缓冲职能。细线框 + 三角引线，不使用阴影与模糊。</div>
+        <div class="bubble"><b>DRILLS</b> — 钻孔既是采掘路径，也是<mark>水下养殖的进入点</mark>。关键词高亮，其余文字统一弱化到次级墨色。</div>
+        <div class="bubble"><b>FUTURE ABANDON</b> — 长期视角下平台被海洋生物接管，成为人工礁体。编号与页码构成图面索引。</div>
+      </div>
+      <div class="arrow-row"><span class="a">⟵</span> 结构扩散 <span style="flex:1;border-top:1px dashed var(--rule)"></span> 轴线标注 <span class="a">⟶</span></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><span class="no">04 /</span><h2>控件 · Controls</h2><span class="note">直角细线、零圆角、零渐变、零阴影</span></div>
+    <div class="sec-body two">
+      <div>
+        <p class="label">按钮四态</p>
+        <div class="btn-row">
+          <button class="btn" type="button">保存</button>
+          <button class="btn primary" type="button">解析并执行</button>
+          <button class="btn active" type="button">等轴测</button>
+          <button class="btn" type="button" disabled>撤销</button>
+        </div>
+        <p class="label">标签 / 预设</p>
+        <div style="margin-bottom:12px">
+          <span class="tag">seed 20261106</span><span class="tag accent">东方市 · 未来城市</span>
+          <span class="tag amber">381A0250</span><span class="tag green">PASS</span>
+        </div>
+        <div><span class="chip">生成城市</span><span class="chip hot">东侧密度 -30%</span><span class="chip">加斜向路</span><span class="chip">验收演示</span></div>
+      </div>
+      <div>
+        <p class="label">输入 / 开关 / 滑杆</p>
+        <input class="inp mono" value="density.adjust east relative -0.3" style="margin-bottom:12px" />
+        <div style="display:flex;gap:22px;align-items:center;margin-bottom:6px">
+          <span class="toggle"><span class="track on"></span>节点编辑</span>
+          <span class="toggle"><span class="track"></span>地块边界</span>
+        </div>
+        <input type="range" min="0" max="100" value="68" />
+        <div class="type-data" style="color:var(--ink-3)">density.base = 0.82 &nbsp;·&nbsp; 方形滑块，非圆形</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><span class="no">05 /</span><h2>数据 · Data &amp; Legend</h2><span class="note">细横线表格 / 图例 / 比例尺 / 指北针</span></div>
+    <div class="sec-body two">
+      <div>
+        <div class="stat">
+          <div><div class="k">建筑</div><div class="v">150</div></div>
+          <div><div class="k">地块</div><div class="v">241</div></div>
+          <div><div class="k">乔木</div><div class="v">777</div></div>
+        </div>
+        <table>
+          <thead><tr><th>分区</th><th>占用率</th><th style="text-align:right">建筑</th></tr></thead>
+          <tbody>
+            <tr><td>核心区</td><td>65%</td><td class="num">38</td></tr>
+            <tr><td>东侧</td><td>52%</td><td class="num">30</td></tr>
+            <tr><td>西侧</td><td>68%</td><td class="num">35</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <p class="label">图例</p>
+        <div class="legend">
+          <span><i style="background:#e8b0a8"></i>居住</span>
+          <span><i style="background:#afc8d8"></i>办公</span>
+          <span><i style="background:#b4d2bc"></i>研发</span>
+          <span><i style="background:#e9ce9b"></i>商业</span>
+          <span><i style="background:#afcb93"></i>公园</span>
+          <span><i style="background:#8fb8c8"></i>水系</span>
+        </div>
+        <p class="label" style="margin-top:20px">比例尺 / 指北</p>
+        <div class="scale"><div class="bar"></div><span>0 ─ 20 ─ 40 m</span></div>
+        <div style="margin-top:12px;font-size:12px"><span style="color:var(--red);font-weight:700;font-size:15px">N</span> <span class="mono" style="color:var(--ink-3);font-size:10px">↑ -Z &nbsp;·&nbsp; E → +X</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><span class="no">06 /</span><h2>图案填充 · Hatch</h2><span class="note">用图案区分，不用明暗 / 渐变 / 模糊（参考图 4/5）</span></div>
+    <div class="sec-body">
+      <div class="three">
+        <div><div class="pat pat-hatch"></div><p class="label" style="margin-top:7px">45° 斜线 · 广场 / 步道</p></div>
+        <div><div class="pat pat-dot"></div><p class="label" style="margin-top:7px">点阵 · 养殖筏 / 密林</p></div>
+        <div><div class="pat pat-grid"></div><p class="label" style="margin-top:7px">正交网格 · 图纸底纹</p></div>
+      </div>
+      <div style="margin-top:14px"><div class="pat pat-iso" style="height:48px"></div><p class="label" style="margin-top:7px">45° 等距菱形网格 · 海图主题图框</p></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><span class="no">07 /</span><h2>图面 · Isometric Sheet</h2><span class="note">纯 SVG 生成的淡彩等距图面，对应参考图 3/4；主题切换同步换色</span></div>
+    <div class="sec-body">
+      <div class="iso-frame">
+        <div class="corner"></div>
+        <svg id="iso" viewBox="0 0 460 285" preserveAspectRatio="xMidYMid meet" aria-label="淡彩等距城市图面示意"></svg>
+        <div class="iso-note">02 / SITE PLAN &nbsp;·&nbsp; 1:2000 &nbsp;·&nbsp; A3</div>
+      </div>
+      <p class="type-body" style="margin-top:12px">主体建筑用低饱和粉 / 薄荷 / 赭 / 淡蓝 / 淡紫平涂，背景与地面退到纸色；无投影、无高光、无发光；体量仅靠三个面的明度差区分。三维视口采用同一套配色映射。</p>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>WORLDCRAFT · 制图语言 v1.0 · 依据 docs/VISUAL_STYLE.md</span>
+    <span class="mono">纸 / 墨 / 线 / 编号 — 共 5 张参考图</span>
+  </div>
+</div>
+
+<script>
+  const PALETTES = {
+    sheet: {
+      neutral: [
+        ['纸底 paper','#F3F1E8'],['面板 paper-2','#FBFAF4'],['分区 paper-3','#EAE7DA'],
+        ['主文字 ink','#2B332E'],['次文字 ink-2','#59635A'],['弱化 ink-3','#8B9388'],
+        ['细线 rule','#C9CBBE'],['淡线 rule-soft','#DFDED2'],
+      ],
+      accent: [
+        ['荧光黄 accent','#E8E44A'],['朱红 red','#D9634F'],['草绿 green','#6E9A58'],
+        ['赭 amber','#C58A54'],['淡紫 purple','#A68CB8'],['青蓝 teal','#4E93A8'],
+        ['淡粉 iso','#E9B3AC'],['薄荷 iso','#BCD4C4'],
+      ],
+    },
+    nautical: {
+      neutral: [
+        ['海面 paper','#224F5B'],['面板 paper-2','#2B5F6B'],['分区 paper-3','#1B414C'],
+        ['主文字 ink','#F2F6F4'],['次文字 ink-2','#C4D6D8'],['弱化 ink-3','#8FB0B4'],
+        ['白线 rule','rgba(242,246,244,.34)'],['淡线 rule-soft','rgba(242,246,244,.16)'],
+      ],
+      accent: [
+        ['荧光黄 accent','#E8E44A'],['朱红 red','#E8836C'],['草绿 green','#9EC9A0'],
+        ['赭 amber','#DFB57A'],['淡紫 purple','#C2AAD2'],['青蓝 teal','#8FC8D8'],
+        ['淡粉 iso','#D99890'],['薄荷 iso','#8AB5A2'],
+      ],
+    },
+  };
+
+  function renderPalette(theme) {
+    const p = PALETTES[theme];
+    const row = ([name, hex]) =>
+      '<div class="sw-row"><span class="sw" style="background:' + hex + '"></span>' +
+      '<span class="nm">' + name + '</span><span class="hx">' + hex.toUpperCase() + '</span></div>';
+    document.getElementById('pal-neutral').innerHTML = p.neutral.map(row).join('');
+    document.getElementById('pal-accent').innerHTML = p.accent.map(row).join('');
+  }
+
+  /* 纯 SVG 等距图面：7×7 网格 + 14 个体块 + 公园 / 水面 / 树点 */
+  function renderIso() {
+    const W = 22, H = 11, CX = 230, CY = 74, N = 7;
+    let s = '';
+    const P = (x, y) => x.toFixed(1) + ',' + y.toFixed(1);
+    const diamond = (x, y, dy, cls) =>
+      '<polygon class="' + cls + '" points="' +
+      [P(x, y - H + dy), P(x + W, y + dy), P(x, y + H + dy), P(x - W, y + dy)].join(' ') + '"/>';
+
+    // 场地底菱形
+    s += '<polygon class="iso-ground" points="' +
+      [P(CX, CY - H), P(CX + N * W, CY + N * H), P(CX, CY + (2 * N + 1) * H), P(CX - N * W, CY + N * H)].join(' ') + '"/>';
+    // 网格线
+    for (let i = 0; i <= N; i++) {
+      s += '<line class="iso-line" x1="' + (CX - i * W) + '" y1="' + (CY + i * H) +
+           '" x2="' + (CX + (N - i) * W) + '" y2="' + (CY + (N + i) * H) + '"/>';
+      s += '<line class="iso-line" x1="' + (CX + i * W) + '" y1="' + (CY + i * H) +
+           '" x2="' + (CX - (N - i) * W) + '" y2="' + (CY + (N + i) * H) + '"/>';
+    }
+    const cell = (i, j) => [CX + (i - j) * W, CY + (i + j) * H];
+    // 水面 / 公园色块
+    const water = [[6, 1], [6, 2], [5, 1]];
+    const park = [[0, 4], [1, 5], [4, 6], [5, 6]];
+    water.forEach(([i, j]) => { const [x, y] = cell(i, j); s += diamond(x, y, 0, 'iso-water'); });
+    park.forEach(([i, j]) => { const [x, y] = cell(i, j); s += diamond(x, y, 0, 'iso-park'); });
+
+    // 体块：i, j, 高度, 色组
+    const blds = [
+      [1, 1, 42, 0], [2, 1, 26, 3], [3, 1, 34, 2], [4, 2, 22, 1],
+      [1, 3, 30, 4], [2, 3, 46, 0], [3, 3, 24, 3], [5, 3, 36, 2],
+      [1, 5, 28, 1], [2, 5, 38, 2], [3, 5, 20, 0], [4, 5, 32, 4],
+      [5, 5, 26, 3], [3, 6, 34, 1],
+    ];
+    blds.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
+    blds.forEach(([i, j, h, c]) => {
+      const [x, y] = cell(i, j);
+      const top = [P(x, y - H - h), P(x + W, y - h), P(x, y + H - h), P(x - W, y - h)].join(' ');
+      const left = [P(x - W, y - h), P(x, y + H - h), P(x, y + H), P(x - W, y)].join(' ');
+      const right = [P(x, y + H - h), P(x + W, y - h), P(x + W, y), P(x, y + H)].join(' ');
+      s += '<polygon class="iso-side l' + c + '" points="' + left + '"/>';
+      s += '<polygon class="iso-side r' + c + '" points="' + right + '"/>';
+      s += '<polygon class="iso-top t' + c + '" points="' + top + '"/>';
+      // 顶面细线：立面分格（沿两个可见侧面的等高水平线）
+      for (let k = 1; k <= 2; k++) {
+        const t = h * (k / 3);
+        s += '<line class="iso-line" x1="' + (x - W) + '" y1="' + (y - t) + '" x2="' + x + '" y2="' + (y + H - t) + '"/>';
+        s += '<line class="iso-line" x1="' + x + '" y1="' + (y + H - t) + '" x2="' + (x + W) + '" y2="' + (y - t) + '"/>';
+      }
+    });
+    // 树点
+    const trees = [[0, 0], [0, 2], [2, 0], [4, 0], [0, 5], [6, 4], [6, 5], [5, 0], [2, 6], [4, 4], [1, 6], [6, 6]];
+    trees.forEach(([i, j]) => {
+      const [x, y] = cell(i, j);
+      s += '<circle class="iso-tree" cx="' + x + '" cy="' + (y - 4) + '" r="3.2"/>';
+    });
+    document.getElementById('iso').innerHTML = s;
+  }
+
+  function setTheme(t) {
+    document.documentElement.dataset.theme = t;
+    document.getElementById('btn-sheet').classList.toggle('on', t === 'sheet');
+    document.getElementById('btn-nautical').classList.toggle('on', t === 'nautical');
+    renderPalette(t);
+  }
+  document.getElementById('btn-sheet').addEventListener('click', () => setTheme('sheet'));
+  document.getElementById('btn-nautical').addEventListener('click', () => setTheme('nautical'));
+  renderPalette('sheet');
+  renderIso();
+</script>
+</body>
+</html>

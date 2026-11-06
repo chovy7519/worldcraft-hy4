@@ -96,7 +96,7 @@ export function Hierarchy(props: HierarchyProps) {
                   </div>
                   {open && n.detail === 'parks' && scene.parks.slice(0, 60).map((p) => (
                     <div key={p.id} className="tree-row muted small" style={{ paddingLeft: 40 }}>
-                      <span className="swatch" style={{ background: p.style === 'park' ? '#3f9e6b' : p.style === 'water' ? '#2f86ab' : '#98a3ac' }} />
+                      <span className="swatch" style={{ background: p.style === 'park' ? '#afcb93' : p.style === 'water' ? '#8fb8c8' : '#d5d3c4' }} />
                       <span className="label mono">{p.id}</span>
                       <span className="count">{PARK_SIZE_LABELS[p.sizeClass]} · {Math.round(p.area)}m²</span>
                     </div>

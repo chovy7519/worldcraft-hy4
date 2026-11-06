@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { CityScene } from './CityScene';
+import { CityScene, type SheetTheme } from './CityScene';
 import {
   LAND_USE_COLORS, LAND_USE_LABELS, ZONE_COLORS, ZONE_IDS, ZONE_LABELS,
   type GeneratedScene, type SceneDocument,
@@ -12,6 +12,7 @@ import type { CameraPreset, ViewMode } from '../core/store';
 interface ViewportProps {
   doc: SceneDocument;
   scene: GeneratedScene;
+  theme: SheetTheme;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   cameraPreset: CameraPreset;
@@ -62,7 +63,7 @@ function CameraRig({ preset, nonce, span }: { preset: CameraPreset; nonce: numbe
 
 export function Viewport(props: ViewportProps) {
   const {
-    doc, scene, selectedId, onSelect, cameraPreset, cameraNonce, setCamera,
+    doc, scene, theme, selectedId, onSelect, cameraPreset, cameraNonce, setCamera,
     viewMode, setViewMode, hiddenZones, hiddenGroups,
     showNodes, setShowNodes, selectedNodeId, onSelectNode, onNodeDragEnd,
   } = props;
@@ -81,7 +82,7 @@ export function Viewport(props: ViewportProps) {
         <CameraRig preset={cameraPreset} nonce={cameraNonce} span={span} />
         <OrbitControls makeDefault enableDamping dampingFactor={0.08} maxPolarAngle={Math.PI / 2.02} minDistance={span * 0.12} maxDistance={span * 4} />
         <CityScene
-          doc={doc} scene={scene} selectedId={selectedId} onSelect={onSelect}
+          doc={doc} scene={scene} theme={theme} selectedId={selectedId} onSelect={onSelect}
           viewMode={viewMode} hiddenZones={hiddenZones} hiddenGroups={hiddenGroups}
           showNodes={showNodes} selectedNodeId={selectedNodeId}
           onSelectNode={onSelectNode} onNodeDragEnd={onNodeDragEnd}
@@ -130,7 +131,7 @@ export function Viewport(props: ViewportProps) {
           </div>
           <div className="hud-card small muted" style={{ maxWidth: 250, lineHeight: 1.5 }}>
             左键旋转 · 滚轮缩放 · 右键平移 · 点击建筑选中<br />
-            {showNodes ? '拖动橙色节点可改变道路走向，地块与建筑自动重适配' : '开启「节点编辑」可拖拽道路节点'}<br />
+            {showNodes ? '拖动节点可改变道路走向，地块与建筑自动重适配' : '开启「节点编辑」可拖拽道路节点'}<br />
             {selectedNodeId ? `已选节点 ${selectedNodeId}` : selectedId ? `已选中 ${selectedId}` : '未选中对象'}
           </div>
         </div>

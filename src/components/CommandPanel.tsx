@@ -193,7 +193,7 @@ export function CommandPanel(props: CommandPanelProps) {
         </span>
         <span className="spacer" />
         <button className={`btn sm ghost ${showLlm ? 'active' : ''}`} onClick={() => setShowLlm((v) => !v)}>AI 接口设置</button>
-        <button className="btn sm" style={{ borderColor: '#5c4720', color: 'var(--amber)' }} disabled={busy} onClick={runAcceptanceDemo}>▶ 运行验收演示</button>
+        <button className="btn sm" style={{ borderColor: 'var(--amber)', color: 'var(--amber)' }} disabled={busy} onClick={runAcceptanceDemo}>▶ 运行验收演示</button>
       </div>
 
       <div className="cmd-left">

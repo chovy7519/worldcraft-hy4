@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import type { SheetTheme } from './CityScene';
 import type { GeneratedScene, SceneDocument } from '../core/types';
 
 interface TopBarProps {
@@ -8,6 +9,8 @@ interface TopBarProps {
   canUndo: boolean;
   canRedo: boolean;
   llmEnabled: boolean;
+  theme: SheetTheme;
+  toggleTheme: () => void;
   undo: () => void;
   redo: () => void;
   save: () => void;
@@ -19,7 +22,7 @@ interface TopBarProps {
 
 export function TopBar(props: TopBarProps) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const { doc, scene, statusMessage, canUndo, canRedo, llmEnabled } = props;
+  const { doc, scene, statusMessage, canUndo, canRedo, llmEnabled, theme } = props;
 
   return (
     <header className="topbar">
@@ -43,6 +46,13 @@ export function TopBar(props: TopBarProps) {
         <button className="btn sm" onClick={() => fileRef.current?.click()}>导入</button>
         <button className="btn sm" onClick={props.exportJSON}>导出 JSON</button>
         <button className="btn sm" onClick={props.reset}>重置</button>
+      </div>
+      <div className="tool-group">
+        <button
+          className="btn sm"
+          title="切换制图主题：浅色图纸 / 深色海图"
+          onClick={props.toggleTheme}
+        >{theme === 'sheet' ? '◐ 海图' : '◑ 图纸'}</button>
       </div>
       <input
         ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }}
