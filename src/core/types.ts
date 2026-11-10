@@ -25,7 +25,7 @@ export const ZONE_LABELS: Record<ZoneId, string> = {
 
 /** 制图淡彩分区板（仅展示层使用，不参与场景指纹）。依据 docs/VISUAL_STYLE.md §6 */
 export const ZONE_COLORS: Record<ZoneId, string> = {
-  core: '#e8b84a', east: '#e59a93', west: '#9fc1d6', north: '#a9c99a', south: '#bca6ce',
+  core: '#f2b544', east: '#ef6b6b', west: '#5aa9f5', north: '#7ed6a5', south: '#b48ce8',
 };
 
 export const LAND_USE_LABELS: Record<LandUseId, string> = {
@@ -35,8 +35,8 @@ export const LAND_USE_LABELS: Record<LandUseId, string> = {
 
 /** 制图淡彩功能板（仅展示层使用，不参与场景指纹） */
 export const LAND_USE_COLORS: Record<LandUseId, string> = {
-  office: '#afc8d8', residential: '#e8b0a8', research: '#b4d2bc', commercial: '#e9ce9b',
-  park: '#afcb93', plaza: '#d5d3c4', waterReserved: '#8fb8c8', terrainReserved: '#c6b79a',
+  office: '#4f8fd0', residential: '#d9a45b', research: '#7f7bd4', commercial: '#d16f8a',
+  park: '#3f9e6b', plaza: '#98a3ac', waterReserved: '#2f86ab', terrainReserved: '#8a7a5c',
 };
 
 export const ARCHETYPE_LABELS: Record<ArchetypeId, string> = {

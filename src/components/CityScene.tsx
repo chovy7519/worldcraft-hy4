@@ -1,11 +1,11 @@
 /**
- * 三维场景渲染层（v1.2.0 可编辑几何版 / 制图语言配色 v1.0）。
+ * 三维场景渲染层（v1.2.0 可编辑几何版；配色已回退到修改前）。
  * - 道路段支持任意走向（实例矩阵带 Y 旋转）
  * - 建筑旋转足迹贴合斜向/多边形地块（实例矩阵带 Y 旋转）
  * - 公园用 earcut 三角化后的合并 BufferGeometry，可渲染凹多边形
  * - 地块边界用单个 LineSegments；道路节点用实例球体，可点击/拖拽
- * - 颜色为纯呈现层变换：draftColor() 把数据层材质色重映射为淡彩，
- *   不改写 SceneDocument、不参与场景指纹（见 docs/VISUAL_STYLE.md §3 判断三）
+ * - 配色回退后直接使用数据层材质色，不改写 SceneDocument、不参与场景指纹；
+ *   布局、几何与交互逻辑保持不变
  */
 import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
@@ -52,50 +52,40 @@ interface ThemePalette {
 }
 
 /** 依据 docs/VISUAL_STYLE.md §6 的三维视口配色映射表 */
+/* 配色回退：两套主题共用修改前的深色色板，主题切换逻辑保持不变 */
 const THEME: Record<SheetTheme, ThemePalette> = {
   sheet: {
-    bg: '#edebe1', ground: '#e8e6d9', plinth: '#d9d6c7',
-    grid1: '#cfcdbf', grid2: '#dedccf',
-    roadMain: '#fcfbf6', roadMinor: '#f1efe5',
-    parkStyles: { park: '#c3d9ae', plaza: '#dfddd0', water: '#8fb8c8' },
-    water: '#8fb8c8', trunk: '#a9987c',
-    canopy: ['#9fc48a', '#b7d59c', '#8db87c', '#c6dca8'],
-    canopyStreet: ['#a8c894', '#b6d3a0', '#96bd86', '#c2d8ab'],
-    node: '#d9634f', nodeSelected: '#e8e44a',
-    parcelLine: '#d9634f', selectLine: '#d9634f',
-    hemiSky: '#ffffff', hemiGround: '#d8d5c6',
-    emissive: '#fff4d6',
+    bg: '#0a121a', ground: '#14212b', plinth: '#0d1620',
+    grid1: '#2b4657', grid2: '#1b2c37',
+    roadMain: '#34495a', roadMinor: '#25333f',
+    parkStyles: { park: '#2b7350', plaza: '#7a858f', water: '#1f6a8c' },
+    water: '#2b7fa8', trunk: '#4b3d30',
+    canopy: ['#3a9163', '#4baa76', '#2f875e', '#5cb683'],
+    canopyStreet: ['#4f9e6f', '#57a97a', '#438c62', '#63b184'],
+    node: '#ef9a4a', nodeSelected: '#ffdf7a',
+    parcelLine: '#8fd3ff', selectLine: '#ffc65a',
+    hemiSky: '#bcd9f5', hemiGround: '#14202a',
+    emissive: '#0d2b3d',
   },
   nautical: {
-    bg: '#20505c', ground: '#235662', plinth: '#19434d',
-    grid1: '#3d7783', grid2: '#2d626f',
-    roadMain: '#6e9ba5', roadMinor: '#4e7f8a',
-    parkStyles: { park: '#5e8c7e', plaza: '#7d9490', water: '#4e93a8' },
-    water: '#4e93a8', trunk: '#7c8a7e',
-    canopy: ['#6e9c8a', '#82ad96', '#5d8b7c', '#93b9a3'],
-    canopyStreet: ['#75a28f', '#87b09b', '#679483', '#9abfaa'],
-    node: '#e8e44a', nodeSelected: '#e8836c',
-    parcelLine: '#e8e44a', selectLine: '#e8e44a',
-    hemiSky: '#cfe6e8', hemiGround: '#19434d',
-    emissive: '#7fd0e0',
+    bg: '#0a121a', ground: '#14212b', plinth: '#0d1620',
+    grid1: '#2b4657', grid2: '#1b2c37',
+    roadMain: '#34495a', roadMinor: '#25333f',
+    parkStyles: { park: '#2b7350', plaza: '#7a858f', water: '#1f6a8c' },
+    water: '#2b7fa8', trunk: '#4b3d30',
+    canopy: ['#3a9163', '#4baa76', '#2f875e', '#5cb683'],
+    canopyStreet: ['#4f9e6f', '#57a97a', '#438c62', '#63b184'],
+    node: '#ef9a4a', nodeSelected: '#ffdf7a',
+    parcelLine: '#8fd3ff', selectLine: '#ffc65a',
+    hemiSky: '#bcd9f5', hemiGround: '#14202a',
+    emissive: '#0d2b3d',
   },
 };
 
-/**
- * 材质视图的淡彩化：保留原色相（future=蓝 / warm=赭 / concrete=灰 / mono=白），
- * 压低饱和度并抬到纸面明度区间；高度越高略亮，模拟参考图的屋顶亮部。
- * 仅作用于渲染，不回写 b.color，因此场景指纹不变。
- */
+/** 配色回退：返回数据层材质色本身，不做淡彩重映射（与修改前一致）。 */
 function draftColor(hex: string, theme: SheetTheme, heightRatio = 0): string {
+  void theme; void heightRatio;
   draftTmp.set(hex);
-  const hsl = { h: 0, s: 0, l: 0 };
-  draftTmp.getHSL(hsl);
-  const dark = theme === 'nautical';
-  draftTmp.setHSL(
-    hsl.h,
-    Math.min(dark ? 0.46 : 0.42, hsl.s * (dark ? 0.8 : 0.55)),
-    (dark ? 0.42 + hsl.l * 0.26 : 0.70 + hsl.l * 0.16) + heightRatio * (dark ? 0.04 : 0.05),
-  );
   return `#${draftTmp.getHexString()}`;
 }
 
@@ -189,7 +179,7 @@ export function CityScene(props: CitySceneProps) {
     return {
       matrix: matrixOf(b.x, b.h + (antenna ? 3.2 : 0.7), b.z,
         antenna ? 0.5 : b.w * 0.66, antenna ? 6.4 : 1.4, antenna ? 0.5 : b.d * 0.66, -b.orientation),
-      color: tmpColor.clone().set(draftColor(b.color, theme, 0.6)).multiplyScalar(theme === 'sheet' ? 1.06 : 1.12),
+      color: tmpColor.clone().set(draftColor(b.color, theme, 0.6)).multiplyScalar(1.4),
     };
   }), [visibleBuildings, theme]);
 
