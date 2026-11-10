@@ -32,11 +32,21 @@ npm run dev          # http://127.0.0.1:5190
 
 浏览器要求：支持 WebGL 2 的桌面浏览器（Chrome / Edge）。首次打开即加载默认 400×400 m 未来城市，无需任何配置。
 
-| 工作台全貌 | 可编辑几何顶视（节点手柄 / 地块边界 / 斜向路 / 凹地块） |
-| --- | --- |
-| ![工作台](docs/screenshots/demo-workbench.png) | ![可编辑几何](docs/screenshots/demo-editable-top.png) |
+**版本演进（每个阶段一张当时的画面）**
 
-> 注：以上截图记录的是**改造前的深色界面**；制图语言 v1.0 的实际效果请打开 `docs/styleboard.html`，或在顶栏切换「图纸 / 海图」主题查看工作台。
+| V0.1 · 首版（1096 栋 / `18D5742B`） | v1.1.0 · 分阶段管线（`A74CBFE6`） |
+| --- | --- |
+| ![V0.1 首版](docs/screenshots/history-v01-initial.png) | ![v1.1.0 管线 DAG](docs/screenshots/history-v11-pipeline-dag.png) |
+| v1.2.0 · 可编辑几何（`B2FBF375`） | 视觉体系 v1.0 · 当前（`381A0250`） |
+| ![v1.2.0 可编辑几何](docs/screenshots/demo-editable-top.png) | ![当前图纸主题](docs/screenshots/story-01-workbench-sheet.png) |
+
+**改造前深色界面 与 当前双主题**
+
+| 改造前工作台 | 当前海图主题 |
+| --- | --- |
+| ![改造前工作台](docs/screenshots/demo-workbench.png) | ![海图主题](docs/screenshots/story-06-nautical.png) |
+
+> 注：V0.1 / v1.1.0 / v1.2.0 三张为**当时留存的历史截图**（原文件由用户从回收站复原并归档）；视觉体系 v1.0 阶段当时未做浏览器截图，图纸 / 海图为后续补拍。完整分阶段配图与素材性质说明见 [DEVELOPMENT_STORY.md](docs/DEVELOPMENT_STORY.md)；组件级预览见 [styleboard.html](docs/styleboard.html)。
 
 **一键验收演示**：点击命令面板右上角 `▶ 运行验收演示`，自动依次执行「生成城市 → 东侧密度 -30% → 撤销 → 重做 → 保存 → 加载」。
 
@@ -190,9 +200,10 @@ worldcraft/
 │   ├── ARCHITECTURE.md      架构与确定性证明
 │   ├── COMMAND_SPEC.md      命令、字段注册表、NL 与 LLM 契约
 │   ├── VISUAL_STYLE.md      参考图解析 / Design Token / 组件映射 / 不变量
+│   ├── DEVELOPMENT_STORY.md 分阶段开发过程记录（视频讲述用，含各阶段配图）
 │   ├── styleboard.html      双主题组件级视觉风格板（单文件，可直接打开）
 │   ├── ACCEPTANCE.md        验收逐步记录
-│   └── screenshots/         演示截图（改造前界面）
+│   └── screenshots/         分阶段历史截图 + 当前版本实拍（见 DEVELOPMENT_STORY.md）
 └── README.md
 ```
 
