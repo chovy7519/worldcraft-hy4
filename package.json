@@ -1,9 +1,9 @@
 {
   "name": "worldcraft",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.4.0",
   "type": "module",
-  "description": "WorldCraft V0.1 — Natural Language Procedural World Builder (procedural city blocks)",
+  "description": "WorldCraft — Natural Language Procedural World Builder (procedural city blocks)",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5190",
     "build": "tsc --noEmit && vite build",
