@@ -63,5 +63,8 @@ describe('版本演进记录完整性', () => {
     }
     expect(changelog).toContain('明确未做');
     expect(changelog).toContain('2 km 判定为非目标');
+    // 项目起源：git log 是交付后才建的，不能反推迭代史；这条事实曾被误读
+    expect(changelog).toContain('从 V0.1 起');
+    expect(changelog).toContain('git log 只记录交付后的版本管理');
   });
 });
