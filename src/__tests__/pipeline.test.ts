@@ -98,12 +98,12 @@ describe('整条链路的确定性与扩展点', () => {
     delete (legacy.rules as Record<string, unknown>).pipeline;
     const parsed = parseSceneDocument(legacy);
     expect(parsed.ok).toBe(true);
-    expect(parsed.doc!.schemaVersion).toBe('1.2.0');
+    expect(parsed.doc!.schemaVersion).toBe('1.3.0');
     expect(parsed.doc!.rules.pipeline).toEqual(defaultPipelineRules());
     expect(generateScene(parsed.doc!).fingerprint).toBe(generateScene(createDefaultDocument(999)).fingerprint);
   });
 
-  it('扩展点默认关闭但仍登记预留地块；启用后生成占位水面且改变指纹', () => {
+  it('扩展点默认关闭但仍登记预留地块；启用后生成真实水面且改变指纹', () => {
     const doc = createDefaultDocument(4242);
     const off = generateScene(doc);
     expect(extensionStatus(doc).every((e) => !e.enabled)).toBe(true);
@@ -116,8 +116,10 @@ describe('整条链路的确定性与扩展点', () => {
     const on: SceneDocument = structuredClone(doc);
     on.rules.pipeline.extensions.water = true;
     const enabled = generateScene(on);
-    expect(enabled.water.length).toBe(enabled.stats.reservedWater);
-    expect(enabled.water.every((w) => w.placeholder)).toBe(true);
+    // v1.3.0：相邻预留地块会连通合并成一个水面，因此水面数 ≤ 预留地块数
+    expect(enabled.water.length).toBeGreaterThan(0);
+    expect(enabled.water.length).toBeLessThanOrEqual(enabled.stats.reservedWater);
+    expect(enabled.water.every((w) => !w.placeholder && !!w.polygon && !!w.shoreline)).toBe(true);
     expect(enabled.fingerprint).not.toBe(off.fingerprint);
     expect(enabled.spatial.ok).toBe(true);
   });

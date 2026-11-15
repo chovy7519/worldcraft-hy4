@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { CityScene, type SheetTheme } from './CityScene';
+import { CityScene, type SceneTheme } from './CityScene';
 import {
   LAND_USE_COLORS, LAND_USE_LABELS, ZONE_COLORS, ZONE_IDS, ZONE_LABELS,
   type GeneratedScene, type SceneDocument,
@@ -12,7 +12,7 @@ import type { CameraPreset, ViewMode } from '../core/store';
 interface ViewportProps {
   doc: SceneDocument;
   scene: GeneratedScene;
-  theme: SheetTheme;
+  sceneTheme: SceneTheme;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   cameraPreset: CameraPreset;
@@ -27,6 +27,8 @@ interface ViewportProps {
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onNodeDragEnd: (id: string, x: number, z: number) => void;
+  showMobility: boolean;
+  mobilityPaused: boolean;
 }
 
 const CAMERA_LABELS: Array<[CameraPreset, string]> = [
@@ -63,7 +65,7 @@ function CameraRig({ preset, nonce, span }: { preset: CameraPreset; nonce: numbe
 
 export function Viewport(props: ViewportProps) {
   const {
-    doc, scene, theme, selectedId, onSelect, cameraPreset, cameraNonce, setCamera,
+    doc, scene, sceneTheme, selectedId, onSelect, cameraPreset, cameraNonce, setCamera,
     viewMode, setViewMode, hiddenZones, hiddenGroups,
     showNodes, setShowNodes, selectedNodeId, onSelectNode, onNodeDragEnd,
   } = props;
@@ -82,10 +84,11 @@ export function Viewport(props: ViewportProps) {
         <CameraRig preset={cameraPreset} nonce={cameraNonce} span={span} />
         <OrbitControls makeDefault enableDamping dampingFactor={0.08} maxPolarAngle={Math.PI / 2.02} minDistance={span * 0.12} maxDistance={span * 4} />
         <CityScene
-          doc={doc} scene={scene} theme={theme} selectedId={selectedId} onSelect={onSelect}
+          doc={doc} scene={scene} sceneTheme={sceneTheme} selectedId={selectedId} onSelect={onSelect}
           viewMode={viewMode} hiddenZones={hiddenZones} hiddenGroups={hiddenGroups}
           showNodes={showNodes} selectedNodeId={selectedNodeId}
           onSelectNode={onSelectNode} onNodeDragEnd={onNodeDragEnd}
+          showMobility={props.showMobility} mobilityPaused={props.mobilityPaused}
         />
       </Canvas>
 
@@ -106,6 +109,12 @@ export function Viewport(props: ViewportProps) {
             <span>rev</span><b>{doc.revision}</b>
             <span>空间校验</span><b style={{ color: scene.spatial.ok ? 'var(--green)' : 'var(--red)' }}>{scene.spatial.ok ? 'PASS' : `${scene.spatial.issues.length} 冲突`}</b>
           </div>
+          {!scene.spatial.ok && scene.spatial.issues[0] && (
+            <div className="hud-card" style={{ color: 'var(--red)', maxWidth: 340, marginTop: 6 }}>
+              <b>关系冲突 {scene.spatial.issues.length} 条</b> · {scene.spatial.issues[0].detail}
+              {scene.spatial.issues[0].advice && <div style={{ marginTop: 4 }}>→ {scene.spatial.issues[0].advice}</div>}
+            </div>
+          )}
         </div>
 
         <div className="hud-tr">

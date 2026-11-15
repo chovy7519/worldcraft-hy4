@@ -5,8 +5,9 @@
  */
 import { RULE_FIELDS, getRuleValue, validateRuleValue } from './fields';
 import { buildGridGraph } from './geom/defaultGraph';
+import { parseRegionLayers } from './regions';
 import {
-  MIGRATABLE_VERSIONS, SCHEMA_VERSION, ZONE_IDS,
+  BUILT_USE_IDS, DEFAULT_LAND_USE_MIX, MIGRATABLE_VERSIONS, SCHEMA_VERSION, ZONE_IDS,
   type ObjectOverride, type ParcelEdit, type PipelineRules, type RoadGraph,
   type SceneDocument, type SceneRules,
 } from './types';
@@ -24,11 +25,22 @@ export function defaultPipelineRules(): PipelineRules {
   return {
     roads: { arterialPeriod: 3, localWidth: 7, arterialWidth: 11, suppressParkInterior: true },
     parcels: { targetSize: 20, maxSplit: 2, gap: 1, setback: 3, splitJitter: 0.25 },
-    landUse: { mixPreset: 'balanced', parkRatio: 0.12, clusterBias: 0.45, plazaRatio: 0.035, waterReserveRatio: 0.02, terrainReserveRatio: 0.02 },
+    landUse: {
+      mixPreset: 'balanced', mixMode: 'preset', mix: { ...DEFAULT_LAND_USE_MIX },
+      parkRatio: 0.12, clusterBias: 0.45, plazaRatio: 0.035,
+      waterReserveRatio: 0.02, terrainReserveRatio: 0.02,
+    },
     buildings: { archetypeJitter: 0.12, maxPerParcel: 3, spacing: 1 },
     parks: { centralBlocks: 2, inset: 1.5, pocketMaxArea: 3000, neighborhoodMaxArea: 9000, styleJitter: 0.2 },
     trees: { streetInterval: 9, parkSpacing: 7, roadSetback: 2, boundarySetback: 1, minSpacing: 3.5, jitter: 0.5, maxTrees: 1600 },
-    extensions: { water: false, terrain: false },
+    extensions: {
+      water: false, terrain: false,
+      bankSetback: 4, waterLevel: -1.2, terrainAmplitude: 3.5, terrainFrequency: 0.012,
+    },
+    mobility: {
+      enabled: true, vehicles: 72, pedestrians: 140,
+      vehicleSpeed: 8, pedestrianSpeed: 1.4, laneOffset: 1.6, sidewalkWidth: 1.8,
+    },
   };
 }
 
@@ -68,6 +80,7 @@ export function createDefaultDocument(seed = DEFAULT_SEED): SceneDocument {
     rules,
     graph: buildGridGraph(rules.terrain, rules.pipeline.roads),
     parcelEdits: [],
+    regions: [],
     overrides: {},
     createdAt: now,
     updatedAt: now,
@@ -80,7 +93,13 @@ export function cloneDoc(doc: SceneDocument): SceneDocument {
 
 /** 文档指纹：仅涵盖影响几何的内容，时间戳/名称/id 被排除 */
 export function documentFingerprint(doc: SceneDocument): string {
-  return fingerprintOf({ seed: doc.seed, rules: doc.rules, graph: doc.graph, parcelEdits: doc.parcelEdits, overrides: doc.overrides });
+  // 空叠加层不进指纹：与 stageAssembly 保持一致，迁移后的旧存档指纹稳定
+  const regions = doc.regions ?? [];
+  return fingerprintOf({
+    seed: doc.seed, rules: doc.rules, graph: doc.graph,
+    parcelEdits: doc.parcelEdits, overrides: doc.overrides,
+    ...(regions.length ? { regions } : {}),
+  });
 }
 
 function validPoint(p: unknown): p is { x: number; z: number } {
@@ -166,6 +185,44 @@ export function parseSceneDocument(input: unknown): ParseResult {
   if (isLegacy && rulesCandidate.pipeline === undefined) {
     rulesCandidate.pipeline = defaultPipelineRules();
   }
+  // v1.2.0 → v1.3.0：补齐 E1/E2 参数与流动性分组；缺一即补默认值。
+  // 不按版本号判断，因为本会话内的 v1.3.0 中间版本也可能缺 mobility。
+  {
+    const pipeline = rulesCandidate.pipeline as Record<string, unknown> | undefined;
+    if (pipeline) {
+      const defaults = defaultPipelineRules();
+      const ext = pipeline.extensions as Record<string, unknown> | undefined;
+      if (ext && typeof ext === 'object') {
+        for (const [key, value] of Object.entries(defaults.extensions)) {
+          if (ext[key] === undefined) ext[key] = value;
+        }
+      }
+      if (pipeline.mobility === undefined) {
+        pipeline.mobility = defaults.mobility;
+      } else if (typeof pipeline.mobility === 'object' && pipeline.mobility !== null) {
+        const mob = pipeline.mobility as Record<string, unknown>;
+        for (const [key, value] of Object.entries(defaults.mobility)) {
+          if (mob[key] === undefined) mob[key] = value;
+        }
+      }
+      // v1.3.0 功能占比：旧存档缺 mixMode / mix 时补默认，缺省仍是 preset，
+      // 因此迁移后的生成结果与迁移前逐位一致。
+      const use = pipeline.landUse as Record<string, unknown> | undefined;
+      if (use && typeof use === 'object') {
+        if (use.mixMode === undefined) use.mixMode = defaults.landUse.mixMode;
+        if (use.mix === undefined || use.mix === null || typeof use.mix !== 'object') {
+          use.mix = { ...DEFAULT_LAND_USE_MIX };
+        } else {
+          const mix = use.mix as Record<string, unknown>;
+          // 只补缺失键；已有但非法的值交给下面的 RULE_FIELDS 校验拒绝，
+          // 否则迁移会把脏数据「洗白」，白名单形同虚设。
+          for (const key of BUILT_USE_IDS) {
+            if (mix[key] === undefined) mix[key] = DEFAULT_LAND_USE_MIX[key];
+          }
+        }
+      }
+    }
+  }
   const rules = rulesCandidate as unknown as SceneRules;
   for (const field of RULE_FIELDS) {
     const value = getRuleValue(rules, field.path);
@@ -188,7 +245,7 @@ export function parseSceneDocument(input: unknown): ParseResult {
     density: ['base', 'zoneMultipliers'],
     openSpace: ['enabled', 'shape', 'radius', 'width', 'depth', 'style', 'offsetX', 'offsetZ', 'treeCount'],
     material: ['palette', 'glassRatio', 'roofStyle', 'emissive'],
-    pipeline: ['roads', 'parcels', 'landUse', 'buildings', 'parks', 'trees', 'extensions'],
+    pipeline: ['roads', 'parcels', 'landUse', 'buildings', 'parks', 'trees', 'extensions', 'mobility'],
   })) {
     const obj = (rules as unknown as Record<string, Record<string, unknown>>)[group];
     if (obj === undefined || obj === null) return { ok: false, error: `缺少规则分组：${group}` };
@@ -199,16 +256,31 @@ export function parseSceneDocument(input: unknown): ParseResult {
   for (const [sub, allowedKeys] of Object.entries({
     roads: ['arterialPeriod', 'localWidth', 'arterialWidth', 'suppressParkInterior'],
     parcels: ['targetSize', 'maxSplit', 'gap', 'setback', 'splitJitter'],
-    landUse: ['mixPreset', 'parkRatio', 'clusterBias', 'plazaRatio', 'waterReserveRatio', 'terrainReserveRatio'],
+    landUse: ['mixPreset', 'mixMode', 'mix', 'parkRatio', 'clusterBias', 'plazaRatio', 'waterReserveRatio', 'terrainReserveRatio'],
     buildings: ['archetypeJitter', 'maxPerParcel', 'spacing'],
     parks: ['centralBlocks', 'inset', 'pocketMaxArea', 'neighborhoodMaxArea', 'styleJitter'],
     trees: ['streetInterval', 'parkSpacing', 'roadSetback', 'boundarySetback', 'minSpacing', 'jitter', 'maxTrees'],
-    extensions: ['water', 'terrain'],
+    extensions: ['water', 'terrain', 'bankSetback', 'waterLevel', 'terrainAmplitude', 'terrainFrequency'],
+    mobility: ['enabled', 'vehicles', 'pedestrians', 'vehicleSpeed', 'pedestrianSpeed', 'laneOffset', 'sidewalkWidth'],
   })) {
     const obj = (rules.pipeline as unknown as Record<string, Record<string, unknown>>)[sub];
     if (obj === undefined || obj === null) return { ok: false, error: `缺少管线参数分组：pipeline.${sub}` };
     for (const key of Object.keys(obj)) {
       if (!allowedKeys.includes(key)) return { ok: false, error: `未注册的管线参数：pipeline.${sub}.${key}` };
+    }
+  }
+  // 自定义功能占比是嵌套对象，白名单只查到 group 层，这里补一层键空间校验，
+  // 防止存档 / LLM 往 mix 里塞任意结构（与 RULE_FIELDS 的四个注册路径严格对应）。
+  {
+    const mix = rules.pipeline.landUse.mix as unknown as Record<string, unknown>;
+    if (!mix || typeof mix !== 'object') return { ok: false, error: '缺少功能占比表 pipeline.landUse.mix' };
+    for (const key of Object.keys(mix)) {
+      if (!BUILT_USE_IDS.includes(key as (typeof BUILT_USE_IDS)[number])) {
+        return { ok: false, error: `未注册的功能占比项：pipeline.landUse.mix.${key}` };
+      }
+      if (typeof mix[key] !== 'number' || !Number.isFinite(mix[key]) || (mix[key] as number) < 0) {
+        return { ok: false, error: `功能占比项 ${key} 必须是非负数值` };
+      }
     }
   }
   for (const group of ['density', 'height'] as const) {
@@ -256,6 +328,11 @@ export function parseSceneDocument(input: unknown): ParseResult {
     }
   }
 
+  const regionsResult = parseRegionLayers(raw.regions);
+  if (!regionsResult.ok || !regionsResult.value) {
+    return { ok: false, error: `区域叠加层校验失败：${regionsResult.error}` };
+  }
+
   const doc: SceneDocument = {
     schemaVersion: SCHEMA_VERSION,
     id: typeof raw.id === 'string' ? raw.id : `scene-restored-${String(raw.seed)}`,
@@ -265,6 +342,7 @@ export function parseSceneDocument(input: unknown): ParseResult {
     rules: structuredClone(rules),
     graph: structuredClone(graphResult.graph),
     parcelEdits: structuredClone(editsResult.edits),
+    regions: structuredClone(regionsResult.value),
     overrides,
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),

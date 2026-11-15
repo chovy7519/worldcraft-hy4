@@ -9,7 +9,12 @@
  */
 import { FIELD_BY_PATH, getRuleValue, isRegisteredPath, setRuleValue, validateRuleValue } from './fields';
 import { clamp } from './rng';
-import { cloneDoc, createDefaultDocument } from './schema';
+import { cloneDoc } from './schema';
+import { createPresetDocument } from './preset';
+import {
+  describeSelector, MAX_REGION_LAYERS, REGION_ID_RE, parseRegionLayer, parseSelector,
+  type RegionLayer,
+} from './regions';
 import { buildGridGraph } from './geom/defaultGraph';
 import { distanceToSegment } from './geom/polygon';
 import {
@@ -196,6 +201,44 @@ export function validateCommand(input: unknown): CommandValidation {
       return { ok: true, command: { op: 'parcel.vertex', at, to } };
     }
     case 'parcel.edits.clear': return { ok: true, command: { op: 'parcel.edits.clear' } };
+    // --- 区域选择器叠加层 -------------------------------------------------
+    case 'region.add': {
+      const parsed = parseRegionLayer(c.layer);
+      if (!parsed.ok || !parsed.value) return { ok: false, error: `region.add.layer: ${parsed.error}` };
+      return { ok: true, command: { op: 'region.add', layer: parsed.value } };
+    }
+    case 'region.update': {
+      if (typeof c.id !== 'string' || !REGION_ID_RE.test(c.id)) return { ok: false, error: 'region.update.id 非法' };
+      if (typeof c.patch !== 'object' || c.patch === null || Array.isArray(c.patch)) return { ok: false, error: 'patch 必须是对象' };
+      const p = c.patch as Record<string, unknown>;
+      const patch: Partial<RegionLayer> = {};
+      if (p.selector !== undefined) {
+        const s = parseSelector(p.selector);
+        if (!s.ok || !s.value) return { ok: false, error: `patch.selector: ${s.error}` };
+        patch.selector = s.value;
+      }
+      if (p.name !== undefined) {
+        if (typeof p.name !== 'string' || p.name.length > 60) return { ok: false, error: 'patch.name 非法' };
+        patch.name = p.name;
+      }
+      for (const [key, lo, hi] of [['density', 0, 2], ['height', 0.2, 2], ['priority', 0, 1000]] as const) {
+        if (p[key] === undefined) continue;
+        if (typeof p[key] !== 'number' || !Number.isFinite(p[key])) return { ok: false, error: `patch.${key} 必须是数值` };
+        (patch as Record<string, unknown>)[key] = clamp(p[key] as number, lo, hi);
+      }
+      if (p.enabled !== undefined) patch.enabled = Boolean(p.enabled);
+      if (p.blend !== undefined) {
+        if (p.blend !== 'multiply' && p.blend !== 'override') return { ok: false, error: 'patch.blend 非法' };
+        patch.blend = p.blend;
+      }
+      if (Object.keys(patch).length === 0) return { ok: false, error: 'patch 为空' };
+      return { ok: true, command: { op: 'region.update', id: c.id, patch } };
+    }
+    case 'region.remove': {
+      if (typeof c.id !== 'string' || !REGION_ID_RE.test(c.id)) return { ok: false, error: 'region.remove.id 非法' };
+      return { ok: true, command: { op: 'region.remove', id: c.id } };
+    }
+    case 'region.clear': return { ok: true, command: { op: 'region.clear' } };
     default:
       return { ok: false, error: `不支持的操作：${String(op)}` };
   }
@@ -234,9 +277,14 @@ export function applyCommands(doc: SceneDocument, commands: Command[], source: C
   for (const cmd of commands) {
     switch (cmd.op) {
       case 'scene.create': {
-        const created = createDefaultDocument(cmd.seed ?? next.seed);
-        if (cmd.width !== undefined) created.rules.terrain.width = clamp(cmd.width, 80, 1200);
-        if (cmd.depth !== undefined) created.rules.terrain.depth = clamp(cmd.depth, 80, 1200);
+        // 新建同样以用户默认预设为基底；指定尺寸时必须同步重建持久化道路图，
+        // 否则 800 m 的节点坐标会留在一个 400 m 场地里（既有不一致，本轮顺手修）。
+        const created = createPresetDocument(cmd.seed ?? next.seed);
+        if (cmd.width !== undefined || cmd.depth !== undefined) {
+          if (cmd.width !== undefined) created.rules.terrain.width = clamp(cmd.width, 80, 1200);
+          if (cmd.depth !== undefined) created.rules.terrain.depth = clamp(cmd.depth, 80, 1200);
+          created.graph = buildGridGraph(created.rules.terrain, created.rules.pipeline.roads);
+        }
         if (cmd.name !== undefined) created.name = cmd.name;
         created.id = next.id;
         created.createdAt = next.createdAt;
@@ -246,7 +294,7 @@ export function applyCommands(doc: SceneDocument, commands: Command[], source: C
         break;
       }
       case 'scene.reset': {
-        const reset = createDefaultDocument(next.seed);
+        const reset = createPresetDocument(next.seed);
         reset.id = next.id;
         reset.createdAt = next.createdAt;
         reset.revision = next.revision + 1;
@@ -458,6 +506,51 @@ export function applyCommands(doc: SceneDocument, commands: Command[], source: C
         changes.push(change('parcelEdits', `${before} 条`, '0 条', source, '地块', '清空地块编辑，恢复由道路图直接划分的面'));
         break;
       }
+      case 'region.add': {
+        const layers = next.regions ?? [];
+        if (layers.length >= MAX_REGION_LAYERS) { errors.push(`叠加层数量超过上限 ${MAX_REGION_LAYERS}`); break; }
+        if (layers.some((r) => r.id === cmd.layer.id)) { errors.push(`叠加层 id 已存在：${cmd.layer.id}`); break; }
+        next.regions = [...layers, cmd.layer];
+        next.revision++;
+        const scope = describeSelector(cmd.layer.selector);
+        changes.push(change(
+          `regions.${cmd.layer.id}`, null, scope, source, scope,
+          `新增叠加层：密度 ×${cmd.layer.density} / 高度 ×${cmd.layer.height} / ${cmd.layer.blend}`,
+        ));
+        break;
+      }
+      case 'region.update': {
+        const layers = next.regions ?? [];
+        const idx = layers.findIndex((r) => r.id === cmd.id);
+        if (idx < 0) { errors.push(`叠加层不存在：${cmd.id}`); break; }
+        const before = layers[idx];
+        const merged = { ...before, ...cmd.patch };
+        const parsed = parseRegionLayer(merged, idx);
+        if (!parsed.ok || !parsed.value) { errors.push(`叠加层更新非法：${parsed.error}`); break; }
+        next.regions = layers.map((r, i) => (i === idx ? parsed.value! : r));
+        next.revision++;
+        changes.push(change(
+          `regions.${cmd.id}`, `密度×${before.density}/高度×${before.height}`,
+          `密度×${parsed.value.density}/高度×${parsed.value.height}`, source,
+          describeSelector(parsed.value.selector), '更新区域叠加层',
+        ));
+        break;
+      }
+      case 'region.remove': {
+        const layers = next.regions ?? [];
+        if (!layers.some((r) => r.id === cmd.id)) { errors.push(`叠加层不存在：${cmd.id}`); break; }
+        next.regions = layers.filter((r) => r.id !== cmd.id);
+        next.revision++;
+        changes.push(change(`regions.${cmd.id}`, '启用', '移除', source, cmd.id, '移除区域叠加层'));
+        break;
+      }
+      case 'region.clear': {
+        const before = (next.regions ?? []).length;
+        next.regions = [];
+        next.revision++;
+        changes.push(change('regions', `${before} 层`, '0 层', source, '全局', '清空全部区域叠加层'));
+        break;
+      }
       case 'camera.set': {
         cameraPreset = cmd.preset;
         break;
@@ -498,6 +591,10 @@ export function describeCommand(cmd: Command): string {
     case 'parcel.merge': return `合并 (${cmd.a.x},${cmd.a.z}) 与 (${cmd.b.x},${cmd.b.z}) 所在地块`;
     case 'parcel.vertex': return `移动地块顶点 (${cmd.at.x},${cmd.at.z}) → (${cmd.to.x},${cmd.to.z})`;
     case 'parcel.edits.clear': return '清空全部地块编辑';
+    case 'region.add': return `新增区域叠加层：${describeSelector(cmd.layer.selector)}（密度 ×${cmd.layer.density} / 高度 ×${cmd.layer.height}）`;
+    case 'region.update': return `更新区域叠加层 ${cmd.id}`;
+    case 'region.remove': return `移除区域叠加层 ${cmd.id}`;
+    case 'region.clear': return '清空全部区域叠加层';
     case 'camera.set': return `切换视角：${cmd.preset}`;
   }
 }

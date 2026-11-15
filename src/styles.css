@@ -6,69 +6,88 @@
    所有既有 className 保持不变，本文件为纯样式替换。
    ========================================================================== */
 
+/* 浅色图纸（默认）—— docs/VISUAL_STYLE.md §4.1：浅底墨线 + 荧光黄点缀 */
 :root,
 :root[data-theme='sheet'] {
-  --paper: #090e14;
-  --paper-2: #111a23;
-  --paper-3: #16222d;
-  --ink: #dfe9f0;
-  --ink-2: #a8bcc9;
-  --ink-3: #728898;
-  --rule: #263643;
-  --rule-soft: #1c2934;
-  --grid: rgba(28, 41, 52, .35);
-  --grid-2: rgba(28, 41, 52, .18);
-  --accent: #4fc3f7;
-  --accent-soft: #1d4b63;
-  --red: #ef7b72;
-  --red-soft: var(--line-soft);
-  --green: #6fd39b;
-  --green-soft: var(--line-soft);
-  --amber: #f2b544;
-  --amber-soft: var(--line-soft);
-  --purple: #b48ce8;
-  --teal: #4fc3f7;
-  --teal-soft: var(--accent-soft);
+  --paper: #F3F1E8;
+  --paper-2: #FBFAF4;
+  --paper-3: #EAE7DA;
+  --ink: #2B332E;
+  --ink-2: #59635A;
+  --ink-3: #8B9388;
+  --rule: #C9CBBE;
+  --rule-soft: #DFDED2;
+  --grid: rgba(43, 51, 46, .055);
+  --grid-2: rgba(43, 51, 46, .028);
+  --accent: #E8E44A;
+  --accent-soft: #F5F2C4;
+  --red: #D9634F;
+  --red-soft: #F7E2DB;
+  --green: #7FA86A;
+  --green-soft: #E5EEDF;
+  --amber: #C58A54;
+  --amber-soft: #F3E6D6;
+  --purple: #A68CB8;
+  --teal: #4E93A8;
+  --teal-soft: #DEEBEF;
   --line: var(--rule);
   --line-soft: var(--rule-soft);
   --text: var(--ink);
   --text-2: var(--ink-2);
   --muted: var(--ink-3);
   --panel: var(--paper-2);
+  /* 荧光黄实底上永远用深墨字，两套主题共用 */
+  --on-accent: #2B332E;
+  --btn-primary-bg: #2B332E;
+  --btn-primary-border: #59635A;
+  --btn-primary-fg: #FBFAF4;
+  --btn-primary-hover: #59635A;
+  --btn-active-bg: #F5F2C4;
+  --btn-active-fg: #2B332E;
+  /* 浅纸 HUD 叠在明亮三维场景上，需要更重的边线维持可读性 */
+  --hud-border: #8B9388;
   --mono: 'IBM Plex Mono', 'JetBrains Mono', 'Cascadia Code', Consolas, 'SF Mono', monospace;
   --sans: 'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --scheme: dark;
+  --scheme: light;
 }
 
-/* 配色回退后两套主题共用同一份修改前色板；主题切换逻辑保持不变 */
+/* 深色海图 —— §4.2：深底白线，功能色不反转，叠加 45° 虚线菱形网格 */
 :root[data-theme='nautical'] {
-  --paper: #090e14;
-  --paper-2: #111a23;
-  --paper-3: #16222d;
-  --ink: #dfe9f0;
-  --ink-2: #a8bcc9;
-  --ink-3: #728898;
-  --rule: #263643;
-  --rule-soft: #1c2934;
-  --grid: rgba(28, 41, 52, .35);
-  --grid-2: rgba(28, 41, 52, .18);
-  --accent: #4fc3f7;
-  --accent-soft: #1d4b63;
-  --red: #ef7b72;
-  --red-soft: var(--line-soft);
-  --green: #6fd39b;
-  --green-soft: var(--line-soft);
-  --amber: #f2b544;
-  --amber-soft: var(--line-soft);
-  --purple: #b48ce8;
-  --teal: #4fc3f7;
-  --teal-soft: var(--accent-soft);
+  --paper: #224F5B;
+  --paper-2: #2B5F6B;
+  --paper-3: #1B414C;
+  --ink: #F2F6F4;
+  --ink-2: #C4D6D8;
+  --ink-3: #8FB0B4;
+  --rule: rgba(242, 246, 244, .34);
+  --rule-soft: rgba(242, 246, 244, .16);
+  --grid: rgba(242, 246, 244, .055);
+  --grid-2: rgba(242, 246, 244, .028);
+  --accent: #E8E44A;
+  --accent-soft: rgba(232, 228, 74, .18);
+  --red: #D9634F;
+  --red-soft: rgba(217, 99, 79, .18);
+  --green: #7FA86A;
+  --green-soft: rgba(127, 168, 106, .18);
+  --amber: #C58A54;
+  --amber-soft: rgba(197, 138, 84, .18);
+  --purple: #A68CB8;
+  --teal: #4E93A8;
+  --teal-soft: rgba(78, 147, 168, .20);
   --line: var(--rule);
   --line-soft: var(--rule-soft);
   --text: var(--ink);
   --text-2: var(--ink-2);
   --muted: var(--ink-3);
   --panel: var(--paper-2);
+  --on-accent: #1B414C;
+  --btn-primary-bg: #16506B;
+  --btn-primary-border: #24799E;
+  --btn-primary-fg: #E8F7FF;
+  --btn-primary-hover: #1B6588;
+  --btn-active-bg: #12303F;
+  --btn-active-fg: #E8E44A;
+  --hud-border: rgba(242, 246, 244, .34);
   --scheme: dark;
 }
 
@@ -89,10 +108,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* 海图主题叠加 45° 虚线菱形网格（VISUAL_STYLE.md §5 视口网格条） */
+:root[data-theme='nautical'] body {
+  background-image:
+    repeating-linear-gradient(45deg, var(--grid) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(-45deg, var(--grid) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(0deg, var(--grid-2) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(90deg, var(--grid-2) 0 1px, transparent 1px 20px);
+}
+
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: .36; cursor: not-allowed; }
-::selection { background: var(--accent); color: #090e14; }
+::selection { background: var(--accent); color: var(--on-accent); }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -147,7 +175,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
   color: var(--ink-2); background: var(--paper-2); white-space: nowrap;
 }
 .tag.accent { color: var(--red); border-color: var(--red); }
-.tag.amber { color: #090e14; border-color: #090e14; background: var(--accent); font-weight: 600; }
+.tag.amber { color: var(--on-accent); border-color: var(--on-accent); background: var(--accent); font-weight: 600; }
 .tag.green { color: var(--green); border-color: var(--green); background: var(--green-soft); }
 .tag.red { color: var(--red); border-color: var(--red); background: var(--red-soft); }
 .mono { font-family: var(--mono); }
@@ -179,14 +207,14 @@ button:disabled { opacity: .36; cursor: not-allowed; }
   transition: background .1s, color .1s, border-color .1s;
 }
 .btn:hover:not(:disabled) { background: var(--paper-3); border-color: var(--ink-3); color: var(--ink); }
-.btn.primary { background: #16506b; border-color: #24799e; color: #e8f7ff; font-weight: 600; }
-.btn.primary:hover:not(:disabled) { background: #1b6588; color: #e8f7ff; }
+.btn.primary { background: var(--btn-primary-bg); border-color: var(--btn-primary-border); color: var(--btn-primary-fg); font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: var(--btn-primary-hover); color: var(--btn-primary-fg); }
 .btn.ghost { background: transparent; }
 .btn.sm { height: 22px; padding: 0 7px; font-size: 11px; }
 .btn.active {
-  border-color: var(--accent); color: var(--accent); background: #12303f; font-weight: 600;
+  border-color: var(--accent); color: var(--btn-active-fg); background: var(--btn-active-bg); font-weight: 600;
 }
-.btn.active:hover:not(:disabled) { background: #12303f; color: var(--accent); border-color: var(--accent); }
+.btn.active:hover:not(:disabled) { background: var(--btn-active-bg); color: var(--btn-active-fg); border-color: var(--accent); }
 .status-strip {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
   color: var(--ink-3); font-size: 11px; overflow: hidden;
@@ -253,13 +281,13 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 /* 注记气泡：纸底 + 1px 墨线 + 三角引线，无模糊 */
 .hud-card {
   position: relative;
-  background: var(--paper-2); border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--paper-2); border: 1px solid var(--hud-border); border-radius: 2px;
   padding: 6px 9px; box-shadow: none; backdrop-filter: none;
 }
 .hud-tl .hud-card::before, .hud-tl .hud-card::after,
 .hud-bl .hud-card.small::before, .hud-bl .hud-card.small::after {
   content: ''; position: absolute; left: 20px; width: 0; height: 0;
-  border-left: 7px solid transparent; border-right: 0 solid transparent; border-top: 8px solid var(--rule);
+  border-left: 7px solid transparent; border-right: 0 solid transparent; border-top: 8px solid var(--hud-border);
 }
 .hud-tl .hud-card::before, .hud-bl .hud-card.small::before { bottom: -8px; }
 .hud-tl .hud-card::after, .hud-bl .hud-card.small::after {
@@ -393,7 +421,7 @@ input[type=range]::-moz-range-thumb {
   height: 18px; padding: 0 5px; font-size: 9.5px; border: 1px solid var(--rule);
   border-radius: 0; background: var(--paper-2); color: var(--ink-2);
 }
-.mini-btn:hover { border-color: var(--accent); color: #090e14; background: var(--accent); }
+.mini-btn:hover { border-color: var(--accent); color: var(--on-accent); background: var(--accent); }
 .presets { display: flex; flex-wrap: nowrap; gap: 4px; padding: 0 9px 7px; overflow-x: auto; overflow-y: hidden; }
 .chip {
   flex: none; border: 1px solid var(--rule); background: var(--paper-2);

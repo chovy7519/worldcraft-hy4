@@ -1,0 +1,1302 @@
+{
+  "schemaVersion": "1.3.0",
+  "name": "未来城市 · 800 × 800 m",
+  "seed": 20261106,
+  "rules": {
+    "terrain": {
+      "width": 800,
+      "depth": 800,
+      "cellSize": 8,
+      "blockPeriod": 6,
+      "streetWidth": 7,
+      "groundLevel": 0
+    },
+    "height": {
+      "base": 20,
+      "max": 65,
+      "taper": 1.35,
+      "jitter": 0.22,
+      "profile": "centerHigh",
+      "zoneMultipliers": {
+        "core": 1,
+        "east": 1,
+        "west": 1,
+        "north": 1,
+        "south": 1
+      }
+    },
+    "density": {
+      "base": 0.82,
+      "zoneMultipliers": {
+        "core": 1,
+        "east": 1,
+        "west": 1,
+        "north": 1,
+        "south": 1
+      }
+    },
+    "openSpace": {
+      "enabled": true,
+      "shape": "rect",
+      "radius": 46,
+      "width": 90,
+      "depth": 90,
+      "style": "park",
+      "offsetX": 0,
+      "offsetZ": 0,
+      "treeCount": 84
+    },
+    "material": {
+      "palette": "future",
+      "glassRatio": 0.55,
+      "roofStyle": "mixed",
+      "emissive": 0.25
+    },
+    "pipeline": {
+      "roads": {
+        "arterialPeriod": 3,
+        "localWidth": 7,
+        "arterialWidth": 11,
+        "suppressParkInterior": true
+      },
+      "parcels": {
+        "targetSize": 20,
+        "maxSplit": 2,
+        "gap": 1,
+        "setback": 3,
+        "splitJitter": 0.25
+      },
+      "landUse": {
+        "mixPreset": "balanced",
+        "mixMode": "preset",
+        "mix": {
+          "office": 0.34,
+          "residential": 0.22,
+          "research": 0.22,
+          "commercial": 0.22
+        },
+        "parkRatio": 0.12,
+        "clusterBias": 0.45,
+        "plazaRatio": 0.035,
+        "waterReserveRatio": 0.02,
+        "terrainReserveRatio": 0.02
+      },
+      "buildings": {
+        "archetypeJitter": 0.12,
+        "maxPerParcel": 3,
+        "spacing": 1
+      },
+      "parks": {
+        "centralBlocks": 1,
+        "inset": 1.5,
+        "pocketMaxArea": 3000,
+        "neighborhoodMaxArea": 9000,
+        "styleJitter": 0.2
+      },
+      "trees": {
+        "streetInterval": 9,
+        "parkSpacing": 7,
+        "roadSetback": 2,
+        "boundarySetback": 1,
+        "minSpacing": 5,
+        "jitter": 0.5,
+        "maxTrees": 1600
+      },
+      "extensions": {
+        "water": false,
+        "terrain": false,
+        "bankSetback": 4,
+        "waterLevel": -1.2,
+        "terrainAmplitude": 3.5,
+        "terrainFrequency": 0.012
+      },
+      "mobility": {
+        "enabled": true,
+        "vehicles": 72,
+        "pedestrians": 400,
+        "vehicleSpeed": 12,
+        "pedestrianSpeed": 1.4,
+        "laneOffset": 1.6,
+        "sidewalkWidth": 1.8
+      }
+    }
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "gn.0",
+        "x": -300,
+        "z": -400
+      },
+      {
+        "id": "gn.1",
+        "x": -300,
+        "z": -300
+      },
+      {
+        "id": "gn.2",
+        "x": -300,
+        "z": -200
+      },
+      {
+        "id": "gn.3",
+        "x": -300,
+        "z": -100
+      },
+      {
+        "id": "gn.4",
+        "x": -300,
+        "z": 0
+      },
+      {
+        "id": "gn.5",
+        "x": -300,
+        "z": 100
+      },
+      {
+        "id": "gn.6",
+        "x": -300,
+        "z": 200
+      },
+      {
+        "id": "gn.7",
+        "x": -300,
+        "z": 300
+      },
+      {
+        "id": "gn.8",
+        "x": -300,
+        "z": 400
+      },
+      {
+        "id": "gn.9",
+        "x": -200,
+        "z": -400
+      },
+      {
+        "id": "gn.10",
+        "x": -200,
+        "z": -300
+      },
+      {
+        "id": "gn.11",
+        "x": -200,
+        "z": -200
+      },
+      {
+        "id": "gn.12",
+        "x": -200,
+        "z": -100
+      },
+      {
+        "id": "gn.13",
+        "x": -200,
+        "z": 0
+      },
+      {
+        "id": "gn.14",
+        "x": -200,
+        "z": 100
+      },
+      {
+        "id": "gn.15",
+        "x": -200,
+        "z": 200
+      },
+      {
+        "id": "gn.16",
+        "x": -200,
+        "z": 300
+      },
+      {
+        "id": "gn.17",
+        "x": -200,
+        "z": 400
+      },
+      {
+        "id": "gn.18",
+        "x": -100,
+        "z": -400
+      },
+      {
+        "id": "gn.19",
+        "x": -100,
+        "z": -300
+      },
+      {
+        "id": "gn.20",
+        "x": -100,
+        "z": -200
+      },
+      {
+        "id": "gn.21",
+        "x": -100,
+        "z": -100
+      },
+      {
+        "id": "gn.22",
+        "x": -100,
+        "z": 0
+      },
+      {
+        "id": "gn.23",
+        "x": -100,
+        "z": 100
+      },
+      {
+        "id": "gn.24",
+        "x": -100,
+        "z": 200
+      },
+      {
+        "id": "gn.25",
+        "x": -100,
+        "z": 300
+      },
+      {
+        "id": "gn.26",
+        "x": -100,
+        "z": 400
+      },
+      {
+        "id": "gn.27",
+        "x": 0,
+        "z": -400
+      },
+      {
+        "id": "gn.28",
+        "x": 0,
+        "z": -300
+      },
+      {
+        "id": "gn.29",
+        "x": 0,
+        "z": -200
+      },
+      {
+        "id": "gn.30",
+        "x": 0,
+        "z": -100
+      },
+      {
+        "id": "gn.31",
+        "x": 0,
+        "z": 0
+      },
+      {
+        "id": "gn.32",
+        "x": 0,
+        "z": 100
+      },
+      {
+        "id": "gn.33",
+        "x": 0,
+        "z": 200
+      },
+      {
+        "id": "gn.34",
+        "x": 0,
+        "z": 300
+      },
+      {
+        "id": "gn.35",
+        "x": 0,
+        "z": 400
+      },
+      {
+        "id": "gn.36",
+        "x": 100,
+        "z": -400
+      },
+      {
+        "id": "gn.37",
+        "x": 100,
+        "z": -300
+      },
+      {
+        "id": "gn.38",
+        "x": 100,
+        "z": -200
+      },
+      {
+        "id": "gn.39",
+        "x": 100,
+        "z": -100
+      },
+      {
+        "id": "gn.40",
+        "x": 100,
+        "z": 0
+      },
+      {
+        "id": "gn.41",
+        "x": 100,
+        "z": 100
+      },
+      {
+        "id": "gn.42",
+        "x": 100,
+        "z": 200
+      },
+      {
+        "id": "gn.43",
+        "x": 100,
+        "z": 300
+      },
+      {
+        "id": "gn.44",
+        "x": 100,
+        "z": 400
+      },
+      {
+        "id": "gn.45",
+        "x": 200,
+        "z": -400
+      },
+      {
+        "id": "gn.46",
+        "x": 200,
+        "z": -300
+      },
+      {
+        "id": "gn.47",
+        "x": 200,
+        "z": -200
+      },
+      {
+        "id": "gn.48",
+        "x": 200,
+        "z": -100
+      },
+      {
+        "id": "gn.49",
+        "x": 200,
+        "z": 0
+      },
+      {
+        "id": "gn.50",
+        "x": 200,
+        "z": 100
+      },
+      {
+        "id": "gn.51",
+        "x": 200,
+        "z": 200
+      },
+      {
+        "id": "gn.52",
+        "x": 200,
+        "z": 300
+      },
+      {
+        "id": "gn.53",
+        "x": 200,
+        "z": 400
+      },
+      {
+        "id": "gn.54",
+        "x": 300,
+        "z": -400
+      },
+      {
+        "id": "gn.55",
+        "x": 300,
+        "z": -300
+      },
+      {
+        "id": "gn.56",
+        "x": 300,
+        "z": -200
+      },
+      {
+        "id": "gn.57",
+        "x": 300,
+        "z": -100
+      },
+      {
+        "id": "gn.58",
+        "x": 300,
+        "z": 0
+      },
+      {
+        "id": "gn.59",
+        "x": 300,
+        "z": 100
+      },
+      {
+        "id": "gn.60",
+        "x": 300,
+        "z": 200
+      },
+      {
+        "id": "gn.61",
+        "x": 300,
+        "z": 300
+      },
+      {
+        "id": "gn.62",
+        "x": 300,
+        "z": 400
+      },
+      {
+        "id": "gn.63",
+        "x": -400,
+        "z": -300
+      },
+      {
+        "id": "gn.64",
+        "x": 400,
+        "z": -300
+      },
+      {
+        "id": "gn.65",
+        "x": -400,
+        "z": -200
+      },
+      {
+        "id": "gn.66",
+        "x": 400,
+        "z": -200
+      },
+      {
+        "id": "gn.67",
+        "x": -400,
+        "z": -100
+      },
+      {
+        "id": "gn.68",
+        "x": 400,
+        "z": -100
+      },
+      {
+        "id": "gn.69",
+        "x": -400,
+        "z": 0
+      },
+      {
+        "id": "gn.70",
+        "x": 400,
+        "z": 0
+      },
+      {
+        "id": "gn.71",
+        "x": -400,
+        "z": 100
+      },
+      {
+        "id": "gn.72",
+        "x": 400,
+        "z": 100
+      },
+      {
+        "id": "gn.73",
+        "x": -400,
+        "z": 200
+      },
+      {
+        "id": "gn.74",
+        "x": 400,
+        "z": 200
+      },
+      {
+        "id": "gn.75",
+        "x": -400,
+        "z": 300
+      },
+      {
+        "id": "gn.76",
+        "x": 400,
+        "z": 300
+      }
+    ],
+    "edges": [
+      {
+        "id": "ge.0",
+        "from": "gn.0",
+        "to": "gn.1",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.1",
+        "from": "gn.1",
+        "to": "gn.2",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.2",
+        "from": "gn.2",
+        "to": "gn.3",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.3",
+        "from": "gn.3",
+        "to": "gn.4",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.4",
+        "from": "gn.4",
+        "to": "gn.5",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.5",
+        "from": "gn.5",
+        "to": "gn.6",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.6",
+        "from": "gn.6",
+        "to": "gn.7",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.7",
+        "from": "gn.7",
+        "to": "gn.8",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.8",
+        "from": "gn.9",
+        "to": "gn.10",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.9",
+        "from": "gn.10",
+        "to": "gn.11",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.10",
+        "from": "gn.11",
+        "to": "gn.12",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.11",
+        "from": "gn.12",
+        "to": "gn.13",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.12",
+        "from": "gn.13",
+        "to": "gn.14",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.13",
+        "from": "gn.14",
+        "to": "gn.15",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.14",
+        "from": "gn.15",
+        "to": "gn.16",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.15",
+        "from": "gn.16",
+        "to": "gn.17",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.16",
+        "from": "gn.18",
+        "to": "gn.19",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.17",
+        "from": "gn.19",
+        "to": "gn.20",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.18",
+        "from": "gn.20",
+        "to": "gn.21",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.19",
+        "from": "gn.21",
+        "to": "gn.22",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.20",
+        "from": "gn.22",
+        "to": "gn.23",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.21",
+        "from": "gn.23",
+        "to": "gn.24",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.22",
+        "from": "gn.24",
+        "to": "gn.25",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.23",
+        "from": "gn.25",
+        "to": "gn.26",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.24",
+        "from": "gn.27",
+        "to": "gn.28",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.25",
+        "from": "gn.28",
+        "to": "gn.29",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.26",
+        "from": "gn.29",
+        "to": "gn.30",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.27",
+        "from": "gn.30",
+        "to": "gn.31",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.28",
+        "from": "gn.31",
+        "to": "gn.32",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.29",
+        "from": "gn.32",
+        "to": "gn.33",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.30",
+        "from": "gn.33",
+        "to": "gn.34",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.31",
+        "from": "gn.34",
+        "to": "gn.35",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.32",
+        "from": "gn.36",
+        "to": "gn.37",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.33",
+        "from": "gn.37",
+        "to": "gn.38",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.34",
+        "from": "gn.38",
+        "to": "gn.39",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.35",
+        "from": "gn.39",
+        "to": "gn.40",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.36",
+        "from": "gn.40",
+        "to": "gn.41",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.37",
+        "from": "gn.41",
+        "to": "gn.42",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.38",
+        "from": "gn.42",
+        "to": "gn.43",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.39",
+        "from": "gn.43",
+        "to": "gn.44",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.40",
+        "from": "gn.45",
+        "to": "gn.46",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.41",
+        "from": "gn.46",
+        "to": "gn.47",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.42",
+        "from": "gn.47",
+        "to": "gn.48",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.43",
+        "from": "gn.48",
+        "to": "gn.49",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.44",
+        "from": "gn.49",
+        "to": "gn.50",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.45",
+        "from": "gn.50",
+        "to": "gn.51",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.46",
+        "from": "gn.51",
+        "to": "gn.52",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.47",
+        "from": "gn.52",
+        "to": "gn.53",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.48",
+        "from": "gn.54",
+        "to": "gn.55",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.49",
+        "from": "gn.55",
+        "to": "gn.56",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.50",
+        "from": "gn.56",
+        "to": "gn.57",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.51",
+        "from": "gn.57",
+        "to": "gn.58",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.52",
+        "from": "gn.58",
+        "to": "gn.59",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.53",
+        "from": "gn.59",
+        "to": "gn.60",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.54",
+        "from": "gn.60",
+        "to": "gn.61",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.55",
+        "from": "gn.61",
+        "to": "gn.62",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.56",
+        "from": "gn.63",
+        "to": "gn.1",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.57",
+        "from": "gn.1",
+        "to": "gn.10",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.58",
+        "from": "gn.10",
+        "to": "gn.19",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.59",
+        "from": "gn.19",
+        "to": "gn.28",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.60",
+        "from": "gn.28",
+        "to": "gn.37",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.61",
+        "from": "gn.37",
+        "to": "gn.46",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.62",
+        "from": "gn.46",
+        "to": "gn.55",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.63",
+        "from": "gn.55",
+        "to": "gn.64",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.64",
+        "from": "gn.65",
+        "to": "gn.2",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.65",
+        "from": "gn.2",
+        "to": "gn.11",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.66",
+        "from": "gn.11",
+        "to": "gn.20",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.67",
+        "from": "gn.20",
+        "to": "gn.29",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.68",
+        "from": "gn.29",
+        "to": "gn.38",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.69",
+        "from": "gn.38",
+        "to": "gn.47",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.70",
+        "from": "gn.47",
+        "to": "gn.56",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.71",
+        "from": "gn.56",
+        "to": "gn.66",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.72",
+        "from": "gn.67",
+        "to": "gn.3",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.73",
+        "from": "gn.3",
+        "to": "gn.12",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.74",
+        "from": "gn.12",
+        "to": "gn.21",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.75",
+        "from": "gn.21",
+        "to": "gn.30",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.76",
+        "from": "gn.30",
+        "to": "gn.39",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.77",
+        "from": "gn.39",
+        "to": "gn.48",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.78",
+        "from": "gn.48",
+        "to": "gn.57",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.79",
+        "from": "gn.57",
+        "to": "gn.68",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.80",
+        "from": "gn.69",
+        "to": "gn.4",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.81",
+        "from": "gn.4",
+        "to": "gn.13",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.82",
+        "from": "gn.13",
+        "to": "gn.22",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.83",
+        "from": "gn.22",
+        "to": "gn.31",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.84",
+        "from": "gn.31",
+        "to": "gn.40",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.85",
+        "from": "gn.40",
+        "to": "gn.49",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.86",
+        "from": "gn.49",
+        "to": "gn.58",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.87",
+        "from": "gn.58",
+        "to": "gn.70",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.88",
+        "from": "gn.71",
+        "to": "gn.5",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.89",
+        "from": "gn.5",
+        "to": "gn.14",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.90",
+        "from": "gn.14",
+        "to": "gn.23",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.91",
+        "from": "gn.23",
+        "to": "gn.32",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.92",
+        "from": "gn.32",
+        "to": "gn.41",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.93",
+        "from": "gn.41",
+        "to": "gn.50",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.94",
+        "from": "gn.50",
+        "to": "gn.59",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.95",
+        "from": "gn.59",
+        "to": "gn.72",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.96",
+        "from": "gn.73",
+        "to": "gn.6",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.97",
+        "from": "gn.6",
+        "to": "gn.15",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.98",
+        "from": "gn.15",
+        "to": "gn.24",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.99",
+        "from": "gn.24",
+        "to": "gn.33",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.100",
+        "from": "gn.33",
+        "to": "gn.42",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.101",
+        "from": "gn.42",
+        "to": "gn.51",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.102",
+        "from": "gn.51",
+        "to": "gn.60",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.103",
+        "from": "gn.60",
+        "to": "gn.74",
+        "cls": "arterial",
+        "width": 11
+      },
+      {
+        "id": "ge.104",
+        "from": "gn.75",
+        "to": "gn.7",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.105",
+        "from": "gn.7",
+        "to": "gn.16",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.106",
+        "from": "gn.16",
+        "to": "gn.25",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.107",
+        "from": "gn.25",
+        "to": "gn.34",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.108",
+        "from": "gn.34",
+        "to": "gn.43",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.109",
+        "from": "gn.43",
+        "to": "gn.52",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.110",
+        "from": "gn.52",
+        "to": "gn.61",
+        "cls": "local",
+        "width": 7
+      },
+      {
+        "id": "ge.111",
+        "from": "gn.61",
+        "to": "gn.76",
+        "cls": "local",
+        "width": 7
+      }
+    ]
+  },
+  "parcelEdits": [],
+  "regions": [],
+  "overrides": {}
+}

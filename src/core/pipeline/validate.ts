@@ -8,11 +8,14 @@
 import { SpatialGrid, type Rect } from './geometry';
 import {
   distanceToEdges, distanceToSegment, isSimple, pointInPolygon,
-  polygonsOverlap, v, type Polygon,
+  polygonArea, polygonsOverlap, v, type Polygon,
 } from '../geom/polygon';
+import {
+  bandPolygon, corridorMinGap, nearParallel, segmentDistance, shareEndpoint,
+} from '../spatialRules';
 import type {
   Bounds, BuildingObject, ParcelObject, ParcelUse, ParkObject, PipelineRules, Polygon2,
-  RoadBand, RoadGraph, SpatialIssue, SpatialReport, TreeObject, WaterSurface,
+  RoadBand, RoadGraph, SpatialIssue, SpatialReport, TerrainFeature, TreeObject, WaterSurface,
 } from '../types';
 
 export interface LayoutInput {
@@ -24,6 +27,7 @@ export interface LayoutInput {
   parks: ParkObject[];
   trees: TreeObject[];
   water: WaterSurface[];
+  terrainFeatures?: TerrainFeature[];
   params: PipelineRules;
   faceIssues?: string[];
   faceArea?: number;
@@ -45,8 +49,8 @@ export function validateSpatialLayout(input: LayoutInput): SpatialReport {
   const checks: Record<string, number> = {};
   const active = bands.filter((b) => !b.suppressed && !b.boundary);
   const parcelById = new Map(parcels.map((p) => [p.id, p]));
-  const push = (code: string, a: string, b: string, detail: string) => {
-    if (issues.length < 240) issues.push({ code, a, b, detail });
+  const push = (code: string, a: string, b: string, detail: string, advice?: string) => {
+    if (issues.length < 240) issues.push({ code, a, b, detail, ...(advice ? { advice } : {}) });
   };
 
   // --- 1. 面提取守恒 -------------------------------------------------------
@@ -148,6 +152,13 @@ export function validateSpatialLayout(input: LayoutInput): SpatialReport {
       }
     }
     if (!isSimple(poly)) push('PARK_NOT_SIMPLE', park.id, '-', '公园多边形自交');
+    // 关系契约：公园/广场必须从道路带退让；生成侧由 setbackFromRoads 保证，这里独立复核
+    for (const band of active) {
+      if (polygonsOverlap(poly, bandPolygon(band))) {
+        push('PARK_ROAD_OVERLAP', park.id, band.id, `${park.style === 'plaza' ? '广场' : '绿地'}压占道路带`);
+        break;
+      }
+    }
   }
   checks.parkContained = parkContained;
 
@@ -188,13 +199,80 @@ export function validateSpatialLayout(input: LayoutInput): SpatialReport {
   checks.parks = parks.length;
   checks.buildings = buildings.length;
 
-  // --- 7. 水面占位 ---------------------------------------------------------
+  // --- 7. E1 水面：岸线退界、场地内、不压占道路 --------------------------
   for (const w of water) {
     if (w.bounds.minX < site.minX - EPS || w.bounds.maxX > site.maxX + EPS
       || w.bounds.minZ < site.minZ - EPS || w.bounds.maxZ > site.maxZ + EPS) {
       push('WATER_OUT_OF_SITE', w.id, 'site', '水面超出场地');
     }
+    if (!w.polygon || w.polygon.length < 3) continue;
+    const poly = toPoly(w.polygon);
+    if (!isSimple(poly)) push('WATER_NOT_SIMPLE', w.id, '-', '水面多边形自交');
+    if (w.shoreline && w.shoreline.length >= 3) {
+      const shore = toPoly(w.shoreline);
+      if (poly.some((q) => !pointInPolygon(shore, q.x, q.z))) {
+        push('WATER_OUTSIDE_SHORELINE', w.id, '-', '退界后的水面越出原始地块红线');
+      }
+      if ((w.bankSetback ?? 0) > 0 && polygonArea(poly) >= polygonArea(shore) - 1e-3) {
+        push('WATER_NO_BANK_SETBACK', w.id, '-', '声明了岸线退界但水面面积未减少');
+      }
+    }
+    // 关系契约：水面已从道路带退让（stageWater 调用 setbackFromRoads），用统一口径独立复核
+    for (const band of active) {
+      if (polygonsOverlap(poly, bandPolygon(band))) {
+        push('WATER_ROAD_OVERLAP', w.id, band.id, '水面压占道路带');
+        break;
+      }
+    }
   }
+  checks.waterSurfaces = water.length;
+
+  // --- 8. E2 地形要素：多边形合法、高程场有限 -----------------------------
+  const terrainFeatures = input.terrainFeatures ?? [];
+  for (const f of terrainFeatures) {
+    if (f.polygon && f.polygon.length >= 3 && !isSimple(toPoly(f.polygon))) {
+      push('TERRAIN_NOT_SIMPLE', f.id, '-', '地形要素多边形自交');
+    }
+    if (f.heightfield?.some((s) => !Number.isFinite(s.y))) {
+      push('TERRAIN_BAD_HEIGHT', f.id, '-', '高程场含非有限值');
+    }
+    if (f.bounds.maxX > site.maxX + EPS || f.bounds.minX < site.minX - EPS
+      || f.bounds.maxZ > site.maxZ + EPS || f.bounds.minZ < site.minZ - EPS) {
+      push('TERRAIN_OUT_OF_SITE', f.id, 'site', '地形要素超出场地');
+    }
+  }
+  checks.terrainPatches = terrainFeatures.length;
+
+  // --- 9. 相邻道路带通行廊道净距（静态规则） -------------------------------
+  // 交叉口（非平行）与共享端点的连通段豁免；只对两条独立的近似平行带判定。
+  // 阈值由 corridorMinGap() 从 sidewalkWidth 派生，不引入第二个旋钮。
+  const minGap = corridorMinGap(params);
+  let narrowPairs = 0;
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i + 1; j < active.length; j++) {
+      const A = active[i];
+      const B = active[j];
+      if (!nearParallel(A, B) || shareEndpoint(A, B)) continue;
+      const d = segmentDistance(
+        v(A.a.x, A.a.z), v(A.b.x, A.b.z),
+        v(B.a.x, B.a.z), v(B.b.x, B.b.z),
+      );
+      if (d <= 1e-6) continue; // 共线重叠/相交由面提取守恒兜底，不在此重复判
+      const gap = d - (A.width + B.width) / 2;
+      if (gap >= minGap) continue;
+      narrowPairs++;
+      const shortfall = Math.max(0, minGap - gap);
+      push(
+        'ROAD_CORRIDOR_NARROW', A.id, B.id,
+        `两条平行道路带净距 ${gap.toFixed(2)} m < 要求 ${minGap.toFixed(2)} m（由步道宽 ${params.mobility.sidewalkWidth} m 派生）`,
+        `中间已放不下双侧步道：请把 ${A.id} 或 ${B.id} 移开至少 ${shortfall.toFixed(2)} m，或删除多余路段；也可调小 pipeline.mobility.sidewalkWidth 降低通行带要求。`,
+      );
+      if (narrowPairs >= 24) break;
+    }
+    if (narrowPairs >= 24) break;
+  }
+  checks.corridorNarrowPairs = narrowPairs;
+  checks.corridorMinGap = Math.round(minGap * 100) / 100;
 
   return {
     ok: issues.length === 0, issues, checks,

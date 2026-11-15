@@ -37,8 +37,8 @@ const enumField = (
 ): RuleField => ({ path, label, group, type: 'enum', options, description, advanced });
 
 export const RULE_FIELDS: RuleField[] = [
-  numberField('terrain.width', '场地宽度', '地形与路网', 80, 1200, 20, '场地东西向总尺寸', 'm'),
-  numberField('terrain.depth', '场地进深', '地形与路网', 80, 1200, 20, '场地南北向总尺寸', 'm'),
+  numberField('terrain.width', '场地宽度', '地形与路网', 80, 1200, 20, '场地东西向总尺寸；已确认目标范围 400–1200 m，2 km 非目标', 'm'),
+  numberField('terrain.depth', '场地进深', '地形与路网', 80, 1200, 20, '场地南北向总尺寸；已确认目标范围 400–1200 m，2 km 非目标', 'm'),
   numberField('terrain.cellSize', '地块网格', '地形与路网', 4, 24, 1, '单个可建地块的边长', 'm', true),
   numberField('terrain.blockPeriod', '街区间隔', '地形与路网', 3, 16, 1, '每隔多少格出现一条街道', '格', true),
   numberField('terrain.streetWidth', '街道宽度', '地形与路网', 3, 20, 1, '街道带视觉宽度', 'm', true),
@@ -129,7 +129,14 @@ RULE_FIELDS.push(
   enumField('pipeline.landUse.mixPreset', '功能配比预设', G_USE, [
     { value: 'balanced', label: '均衡' }, { value: 'office', label: '办公主导' },
     { value: 'research', label: '研发主导' }, { value: 'green', label: '绿地优先' },
-  ], '四类可建功能的权重表'),
+  ], '四类可建功能的权重表（仅在「按预设」模式下生效）'),
+  enumField('pipeline.landUse.mixMode', '功能占比模式', G_USE, [
+    { value: 'preset', label: '按预设' }, { value: 'custom', label: '自定义占比' },
+  ], '自定义模式下逐类调节下方四个权重；四类权重自动归一化，无需凑满 1'),
+  numberField('pipeline.landUse.mix.residential', '住宅占比权重', G_USE, 0, 1, 0.01, '住宅在可建功能中的相对权重（与其余三类比较，自动归一化）'),
+  numberField('pipeline.landUse.mix.commercial', '商业占比权重', G_USE, 0, 1, 0.01, '商业在可建功能中的相对权重'),
+  numberField('pipeline.landUse.mix.office', '办公占比权重', G_USE, 0, 1, 0.01, '办公在可建功能中的相对权重'),
+  numberField('pipeline.landUse.mix.research', '研发占比权重', G_USE, 0, 1, 0.01, '研发在可建功能中的相对权重'),
   numberField('pipeline.landUse.parkRatio', '分散公园比例', G_USE, 0, 0.5, 0.01, '非中央公园地块被分配为公园的概率'),
   numberField('pipeline.landUse.clusterBias', '公园聚集倾向', G_USE, 0, 1, 0.05, '外围分区公园概率的增益，用于形成不同尺寸公园', '', true),
   numberField('pipeline.landUse.plazaRatio', '广场比例', G_USE, 0, 0.3, 0.01, '硬质广场地块比例', '', true),
@@ -154,8 +161,20 @@ RULE_FIELDS.push(
   numberField('pipeline.trees.jitter', '树位扰动', G_TREE, 0, 3, 0.1, '候选点的确定性位置扰动幅度', 'm', true),
   numberField('pipeline.trees.maxTrees', '树木总数上限', G_TREE, 100, 4000, 50, '性能保护：超过上限的候选被丢弃', '株', true),
 
-  boolField('pipeline.extensions.water', 'E1 水系扩展点', G_EXT, '启用后为 waterReserved 地块生成占位水面（正式水系拓扑留待后续）'),
-  boolField('pipeline.extensions.terrain', 'E2 地形扩展点', G_EXT, '启用后为 terrainReserved 地块生成占位地形要素'),
+  boolField('pipeline.extensions.water', 'E1 水系扩展点', G_EXT, '启用后把 waterReserved 地块连成水面并做岸线退界'),
+  boolField('pipeline.extensions.terrain', 'E2 地形扩展点', G_EXT, '启用后为 terrainReserved 地块生成高程场、挡墙线与道路纵断'),
+  numberField('pipeline.extensions.bankSetback', '岸线退界', G_EXT, 0, 20, 0.5, '水面相对所属地块红线向内收缩的距离', 'm', true),
+  numberField('pipeline.extensions.waterLevel', '水面高程', G_EXT, -20, 20, 0.1, '水面相对场地基准的高差', 'm', true),
+  numberField('pipeline.extensions.terrainAmplitude', '地形起伏幅度', G_EXT, 0, 20, 0.5, '高程场相对基准的最大抬升', 'm', true),
+  numberField('pipeline.extensions.terrainFrequency', '地形频率', G_EXT, 0.001, 0.1, 0.001, '高程场的空间频率（越大越碎）', '', true),
+
+  boolField('pipeline.mobility.enabled', '启用人流 / 车流', '管线 · 流动', '沿通行网络生成确定性流动代理；路径受空间关系契约约束'),
+  numberField('pipeline.mobility.vehicles', '车辆数量', '管线 · 流动', 0, 400, 4, '按道路等级与沿线建筑密度分配路段配额', '辆'),
+  numberField('pipeline.mobility.pedestrians', '行人数量', '管线 · 流动', 0, 600, 10, '按步道长度与开放空间面积分配配额', '人'),
+  numberField('pipeline.mobility.vehicleSpeed', '车速', '管线 · 流动', 1, 30, 0.5, '主干路名义车速', 'm/s'),
+  numberField('pipeline.mobility.pedestrianSpeed', '步速', '管线 · 流动', 0.3, 4, 0.1, '行人名义步速', 'm/s'),
+  numberField('pipeline.mobility.laneOffset', '车道偏移', '管线 · 流动', 0, 5, 0.1, '车道中心相对道路中心线的横向偏移，须小于道路半宽', 'm', true),
+  numberField('pipeline.mobility.sidewalkWidth', '步道退距', '管线 · 流动', 0.5, 6, 0.1, '步道中心相对道路带外缘的向外距离', 'm', true),
 );
 
 export const FIELD_BY_PATH: Record<string, RuleField> = Object.fromEntries(

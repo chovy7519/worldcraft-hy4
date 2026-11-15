@@ -161,7 +161,7 @@ export const STAGE_GRAPH: StageMeta[] = [
   },
   {
     id: 'landuse', label: STAGE_LABELS.landuse, deps: ['parcels'], kind: 'core',
-    description: '按 mixPreset 权重 + 分区 + 独立哈希分配功能；相邻公园地块聚类为不同尺寸等级；登记水系/地形预留地块。',
+    description: '按 mixPreset 预设或 mixMode=custom 的自定义四类功能占比（自动归一化）+ 分区 + 独立哈希分配功能；相邻公园地块聚类为不同尺寸等级；登记水系/地形预留地块。',
   },
   {
     id: 'buildings', label: STAGE_LABELS.buildings, deps: ['landuse', 'parcels', 'roads'], kind: 'core',
@@ -176,10 +176,10 @@ export const STAGE_GRAPH: StageMeta[] = [
     description: '行道树沿道路两侧按株距布置，公园树在公园边界内网格布置；统一做路缘净距、地块边界净距、最小株距约束。',
   },
   {
-    id: 'water', label: STAGE_LABELS.water, deps: ['landuse', 'parcels', 'parks'], kind: 'extension',
+    id: 'water', label: STAGE_LABELS.water, deps: ['landuse', 'parcels', 'roads', 'parks'], kind: 'extension',
     enabledBy: (p) => p.extensions.water,
-    description: '消费 waterReserved 地块，生成水面多边形并与公园/道路边界求交。V0.1 仅提供占位实现。',
-    contract: '输入：waterReserved parcels + 公园边界；输出：WaterSurface[]（polygon / width / bank setback）；不得跨越道路带。',
+    description: '消费 waterReserved 地块，按连通分量并集生成水面多边形，做岸线退界并核对不跨越道路带。',
+    contract: '输入：waterReserved parcels + 道路带 + 公园边界；输出：WaterSurface[]（polygon / shoreline / width / bankSetback / level）；水面必须落在预留地块内且不压占道路。',
   },
   {
     id: 'terrainFeatures', label: STAGE_LABELS.terrainFeatures, deps: ['roads', 'parcels', 'landuse'], kind: 'extension',

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FIELD_BY_PATH, RULE_FIELDS, RULE_GROUPS, getRuleValue, type RuleField } from '../core/fields';
-import { STAGE_GRAPH, buildStagePlan, downstreamOf, extensionStatus } from '../core/pcg';
+import { MIX_WEIGHTS, STAGE_GRAPH, buildStagePlan, downstreamOf, extensionStatus } from '../core/pcg';
+import { mixPercentages } from '../core/landUseMix';
+import { RELATION_MATRIX } from '../core/spatialRules';
 import { useAppStore, type ChangeHistoryEntry } from '../core/store';
 import type { Command, RoadClass } from '../core/types';
 import {
-  ARCHETYPE_LABELS, LAND_USE_LABELS, PARK_SIZE_LABELS, ZONE_COLORS, ZONE_LABELS,
+  ARCHETYPE_LABELS, BUILT_USE_IDS, BUILT_USE_LABELS, LAND_USE_COLORS, LAND_USE_LABELS,
+  PARK_SIZE_LABELS, ZONE_COLORS, ZONE_LABELS,
   type ArchetypeId, type GeneratedScene, type LandUseId, type ObjectOverride,
   type RuleChange, type SceneDocument,
 } from '../core/types';
@@ -25,7 +28,7 @@ interface InspectorProps {
   onTabChange: (t: TabId) => void;
 }
 
-export type TabId = 'rules' | 'stats' | 'pipeline' | 'graph' | 'object' | 'changes';
+export type TabId = 'rules' | 'stats' | 'pipeline' | 'graph' | 'object' | 'changes' | 'relations';
 
 function RuleSlider({ field, value, onCommit }: { field: RuleField; value: number; onCommit: (v: number) => void }) {
   const [draft, setDraft] = useState(value);
@@ -235,12 +238,72 @@ export function Inspector(props: InspectorProps) {
         <span className="tag accent">v{doc.schemaVersion}</span>
       </div>
       <div className="tabs">
-        {([['rules', '规则'], ['stats', '统计'], ['pipeline', '管线'], ['graph', '图形编辑'], ['object', '对象'], ['changes', '变化']] as Array<[TabId, string]>).map(([id, label]) => (
+        {([['rules', '规则'], ['stats', '统计'], ['pipeline', '管线'], ['graph', '图形编辑'], ['object', '对象'], ['changes', '变化'], ['relations', '关系']] as Array<[TabId, string]>).map(([id, label]) => (
           <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => onTabChange(id)}>{label}</button>
         ))}
       </div>
 
       <div className="panel-body">
+        {tab === 'relations' && (
+          <>
+            {!scene.spatial.ok && (
+              <div className="section">
+                <div className="section-head">空间冲突 · {scene.spatial.issues.length} 条</div>
+                <div className="section-body">
+                  <div className="desc">以下关系被判为违规。场景仍可继续编辑，但应先处理这些冲突。</div>
+                  {scene.spatial.issues.slice(0, 12).map((issue, i) => (
+                    <div className="log-item" key={`${issue.code}-${i}`}>
+                      <div className="l1">
+                        <span className="tag">{issue.code}</span>
+                        <span className="txt">{issue.a}{issue.b !== '-' ? ` × ${issue.b}` : ''}</span>
+                      </div>
+                      <div className="l2">{issue.detail}</div>
+                      {issue.advice && <div className="l2">→ {issue.advice}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="section">
+              <div className="section-head">城市要素关系契约 · {RELATION_MATRIX.length} 条</div>
+              <div className="section-body">
+                <div className="desc">
+                  谁定义谁、谁避让谁、谁沿谁流动都写在一处。改一个参数会按这张表传导到生成侧与空间校验；
+                  新增要素不登记，回归测试会失败。完整审查见 docs/CITY_RELATIONS.md。
+                </div>
+                {RELATION_MATRIX.map((r, i) => (
+                  <div className="log-item" key={`${r.subject}-${r.object}-${i}`}>
+                    <div className="l1">
+                      <span className="tag">{r.kind}</span>
+                      <span className="txt">{r.subject} → {r.object}</span>
+                    </div>
+                    <div className="l2">{r.rule}</div>
+                    {(r.parameter || r.enforcedBy) && (
+                      <div className="l2 muted">
+                        {r.parameter ?? ''}{r.parameter && r.enforcedBy ? ' · ' : ''}{r.enforcedBy ?? ''}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="section">
+              <div className="section-head">当前流动</div>
+              <div className="section-body">
+                <div className="desc">
+                  车辆 {scene.mobility?.stats.vehicles ?? 0} · 行人 {scene.mobility?.stats.pedestrians ?? 0} ·
+                  路径 {scene.mobility?.paths.length ?? 0} 条 · 公园环 {scene.mobility?.stats.parkLoops ?? 0} ·
+                  总长 {scene.mobility?.stats.totalPathLength ?? 0} m
+                </div>
+                <div className="desc">
+                  建筑临路净距 {doc.rules.pipeline.mobility.sidewalkWidth + 0.4} m（由步道宽度驱动）；
+                  静态空间校验 {scene.spatial.ok ? 'PASS' : `${scene.spatial.issues.length} 冲突`}；
+                  流动警告 {scene.flowWarnings?.length ?? 0} 条（不影响静态合法性）
+                </div>
+              </div>
+            </div>
+          </>
+        )}
         {tab === 'rules' && (
           <>
             <div className="section">
@@ -312,6 +375,38 @@ export function Inspector(props: InspectorProps) {
                 </table>
                 <div className="inline-note mt6">
                   分区采用<b>轴主导互斥划分</b>：每个网格只属于一个分区，因此「东侧密度 -30%」的影响范围可被逐对象验证，非东侧统计值保持不变。
+                </div>
+              </div>
+            </div>
+            <div className="section">
+              <div className="section-title">功能占比 · 目标 / 实际</div>
+              <div className="section-body" style={{ padding: '4px 11px 11px' }}>
+                <table className="zone-table">
+                  <thead><tr><th>可建功能</th><th>目标占比</th><th>实际地块占比</th></tr></thead>
+                  <tbody>
+                    {BUILT_USE_IDS.map((u) => {
+                      const lu = doc.rules.pipeline.landUse;
+                      const target = mixPercentages(lu.mixMode === 'custom' ? lu.mix : MIX_WEIGHTS[lu.mixPreset])[u];
+                      const total = BUILT_USE_IDS.reduce((s, k) => s + scene.stats.landUseCounts[k], 0) || 1;
+                      const actual = Math.round((scene.stats.landUseCounts[u] / total) * 100);
+                      return (
+                        <tr key={u}>
+                          <td><span className="swatch" style={{ background: LAND_USE_COLORS[u], display: 'inline-block', marginRight: 5 }} />{BUILT_USE_LABELS[u]}</td>
+                          <td>{target}%</td>
+                          <td>
+                            {actual}% · {scene.stats.landUseCounts[u]} 块
+                            <div className="bar-mini"><i style={{ width: `${Math.min(100, actual)}%`, background: LAND_USE_COLORS[u] }} /></div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="inline-note mt6">
+                  {doc.rules.pipeline.landUse.mixMode === 'custom'
+                    ? <>当前为<b>自定义占比</b>：在「规则」页的「功能占比模式」下调节四类权重，权重自动归一化，无需凑满 1。</>
+                    : <>当前为<b>预设配比</b>：把「功能占比模式」切到「自定义占比」即可逐类调节。</>}
+                  {' '}实际占比按地块数统计，会受公园/广场/预留比例与公园扩张影响，因此不等同于目标权重。
                 </div>
               </div>
             </div>

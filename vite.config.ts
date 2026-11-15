@@ -5,7 +5,11 @@ export default defineConfig({
   plugins: [react()],
   // 把 Vite/Vitest 的临时缓存固定在项目内，避免写入系统 Temp 时被沙箱拦截
   cacheDir: 'node_modules/.vite-cache',
-  server: { host: '127.0.0.1', port: 5190, strictPort: true },
+  server: {
+    host: '127.0.0.1', port: 5190, strictPort: true,
+    // LLM 后端代理：server/llm-proxy.mjs 默认监听 5191，密钥只在服务端
+    proxy: { '/api': { target: 'http://127.0.0.1:5191', changeOrigin: true } },
+  },
   build: {
     chunkSizeWarningLimit: 800, // three.js 本体约 680 kB，属预期
     rollupOptions: {

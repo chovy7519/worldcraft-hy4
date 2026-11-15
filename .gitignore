@@ -10,3 +10,6 @@ node_modules/.vite-cache/
 # 密钥只存浏览器 localStorage，绝不落盘到仓库
 .env
 .env.*
+
+# WorkBuddy 本机工作区数据（工作日志 / 会话记忆），不进仓库
+.workbuddy/

@@ -9,9 +9,15 @@
  * 4. 空间对象统一携带 AABB（bounds），阶段间以「包含 / 不相交」为硬约束。
  */
 
-export const SCHEMA_VERSION = '1.2.0';
-/** 可迁移的旧版本：v1.0.0 无 pipeline 分组；v1.1.0 无可编辑道路图，均由规则重建 */
-export const MIGRATABLE_VERSIONS = ['1.0.0', '1.1.0'];
+import type { RegionLayer } from './regions';
+import type { MobilityScene } from './mobility';
+
+export const SCHEMA_VERSION = '1.3.0';
+/**
+ * 可迁移的旧版本：v1.0.0 无 pipeline 分组；v1.1.0 无可编辑道路图；
+ * v1.2.0 无区域叠加层 regions 与 E1/E2 参数，加载时补默认值。
+ */
+export const MIGRATABLE_VERSIONS = ['1.0.0', '1.1.0', '1.2.0'];
 
 export type ZoneId = 'core' | 'east' | 'west' | 'north' | 'south';
 export type ZoneSelector = ZoneId | 'all';
@@ -104,6 +110,19 @@ export interface MaterialRules {
 }
 
 export type MixPreset = 'balanced' | 'office' | 'research' | 'green';
+/** 功能配比模式：preset = 用内置权重表；custom = 用可逐类调节的自定义权重 */
+export type MixMode = 'preset' | 'custom';
+/** 四类可建功能（与 park/plaza/预留地相对），是自定义占比的键空间 */
+export type BuiltUseId = 'office' | 'residential' | 'research' | 'commercial';
+export const BUILT_USE_IDS: BuiltUseId[] = ['office', 'residential', 'research', 'commercial'];
+export const BUILT_USE_LABELS: Record<BuiltUseId, string> = {
+  office: '办公', residential: '住宅', research: '研发', commercial: '商业',
+};
+export type LandUseMix = Record<BuiltUseId, number>;
+/** 与 MIX_WEIGHTS.balanced 一致，作为自定义占比的默认值与全零回退值 */
+export const DEFAULT_LAND_USE_MIX: LandUseMix = {
+  office: 0.34, residential: 0.22, research: 0.22, commercial: 0.22,
+};
 export type LandUseId =
   | 'office' | 'residential' | 'research' | 'commercial'
   | 'park' | 'plaza' | 'waterReserved' | 'terrainReserved';
@@ -131,6 +150,9 @@ export interface PipelineRules {
   };
   landUse: {
     mixPreset: MixPreset;
+    /** custom 时生效：四类可建功能的相对权重，生成阶段自动归一化 */
+    mixMode: MixMode;
+    mix: LandUseMix;
     parkRatio: number;
     clusterBias: number;
     plazaRatio: number;
@@ -161,6 +183,28 @@ export interface PipelineRules {
   extensions: {
     water: boolean;
     terrain: boolean;
+    /** E1 水面相对地块红线的退界（m） */
+    bankSetback: number;
+    /** E1 水面高程（相对 groundLevel，m） */
+    waterLevel: number;
+    /** E2 高程场最大起伏（m） */
+    terrainAmplitude: number;
+    /** E2 高程场空间频率（1/m） */
+    terrainFrequency: number;
+  };
+  /** 人流 / 车流：路径必须沿已定义好的通行网络，不是独立撒点 */
+  mobility: {
+    enabled: boolean;
+    /** 车辆总数上限（按路段配额分配） */
+    vehicles: number;
+    /** 行人总数上限（按步道与开放空间配额分配） */
+    pedestrians: number;
+    vehicleSpeed: number;
+    pedestrianSpeed: number;
+    /** 车道中心相对道路中心线的横向偏移（m），必须小于道路半宽 */
+    laneOffset: number;
+    /** 步道中心相对道路带外缘的向外偏移（m） */
+    sidewalkWidth: number;
   };
 }
 
@@ -185,6 +229,8 @@ export interface SceneDocument {
   graph: RoadGraph;
   /** 地块生成 / 拆分 / 合并 / 顶点编辑的空间操作序列 */
   parcelEdits: ParcelEdit[];
+  /** v1.3.0 区域选择器叠加层；缺省为空数组，是倍率计算的恒等元 */
+  regions?: RegionLayer[];
   overrides: Record<string, ObjectOverride>;
   createdAt: string; updatedAt: string;
 }
@@ -339,11 +385,31 @@ export interface PlazaObject {
 export interface WaterSurface {
   id: string; kind: 'water';
   bounds: Bounds; parcelIds: string[]; placeholder: boolean;
+  /** v1.3.0 E1：退界后的水面多边形（岸线） */
+  polygon?: Polygon2;
+  /** v1.3.0 E1：退界前的原始地块红线并集 */
+  shoreline?: Polygon2;
+  width?: number;
+  bankSetback?: number;
+  level?: number;
+  /** 是否由多个相邻预留地块连通合并而来 */
+  connected?: boolean;
 }
+
+export interface HeightSample { x: number; z: number; y: number }
+
+export interface RoadProfileSample { t: number; y: number }
 
 export interface TerrainFeature {
   id: string; kind: 'terrainFeature';
   bounds: Bounds; parcelIds: string[]; placeholder: boolean;
+  /** v1.3.0 E2：地形要素范围多边形 */
+  polygon?: Polygon2;
+  heightfield?: HeightSample[];
+  /** 最大坡度（无量纲，dy/dx） */
+  slope?: number;
+  retainingLines?: Point2[][];
+  roadProfiles?: Array<{ edgeId: string; samples: RoadProfileSample[] }>;
 }
 
 export type SceneObject =
@@ -360,6 +426,8 @@ export interface SpatialIssue {
   a: string;
   b: string;
   detail: string;
+  /** 可操作的修复建议；面向使用者，不是内部日志 */
+  advice?: string;
 }
 
 export interface SpatialReport {
@@ -402,6 +470,12 @@ export interface SceneStats {
   faceArea: number;
   siteArea: number;
   skippedEdits: number;
+  /** v1.3.0：生效的区域叠加层数量 */
+  regionLayers: number;
+  /** v1.3.0：E1 生成的水面连通体数量 */
+  waterSurfaces: number;
+  /** v1.3.0：E2 生成的地形要素数量 */
+  terrainPatches: number;
 }
 
 export interface GeneratedScene {
@@ -425,6 +499,13 @@ export interface GeneratedScene {
   stages: StageRunInfo[];
   stats: SceneStats;
   fingerprint: string;
+  /** v1.3.0 人流/车流：由 doc + scene 纯函数推导，不进阶段 DAG、不进指纹 */
+  mobility?: MobilityScene;
+  /**
+   * 流动代理的局部路径警告。与 spatial.issues 分层：
+   * 静态城市要素的关系决定 spatial.ok；派生表现层的问题只警告、不改判整个场景。
+   */
+  flowWarnings?: SpatialIssue[];
 }
 
 // ---------------------------------------------------------------------------
@@ -452,6 +533,10 @@ export type Command =
   | { op: 'parcel.merge'; a: Point2; b: Point2 }
   | { op: 'parcel.vertex'; at: Point2; to: Point2 }
   | { op: 'parcel.edits.clear' }
+  | { op: 'region.add'; layer: RegionLayer }
+  | { op: 'region.update'; id: string; patch: Partial<RegionLayer> }
+  | { op: 'region.remove'; id: string }
+  | { op: 'region.clear' }
   | { op: 'camera.set'; preset: 'iso' | 'top' | 'front' | 'ne35' };
 
 export interface RuleChange {

@@ -5,12 +5,28 @@
 
 > 核心结论：**LLM 不生成三维代码**。自然语言只被编译成封闭的结构化命令，由受控执行器修改 SceneDocument，再由确定性分阶段 PCG 管线重新推导几何。没有 AI API 时整套核心能力可用。
 
-**视觉体系 v1.0（制图语言）**：界面从「深色软件仪表盘」改为建筑制图语法——编号、引线注记、图例、比例尺、细线直角、图案填充、淡彩平涂三维。提供「浅色图纸 / 深色海图」双主题，顶栏 `◐ 海图 / ◑ 图纸` 切换（主题存 localStorage，不进 SceneDocument）。规范见 [VISUAL_STYLE.md](docs/VISUAL_STYLE.md)，组件级预览见 [styleboard.html](docs/styleboard.html)。
+**v1.3.0 更新（2026-11-15）**：区域选择器与规则叠加层、E1 水系 / E2 地形要素正式实现、多边形布尔运算升级、可插拔阶段注册表与节点图导出、瓦片索引与 2 km 性能实测、LLM 后端代理 + tool calling / JSON Schema。六项后续建议的实际完成度、实测数据与**未实现部分**见 [ROADMAP_v1.3.md](docs/ROADMAP_v1.3.md) —— 该文档刻意区分「已实现并可测」与「评估 / 索引层」。新增能力默认不改变既有生成结果：空叠加层是恒等元，E1/E2 默认关闭。
+
+**规则层审查与城市要素关系契约（同日追加）**：审查发现修复前默认场景 **57/57 个公园与道路带重叠 28.3%、空间校验却 PASS**。根因是各图层的临路退界散落在不同阶段、公园/广场完全没做退界、校验器缺少「公园 vs 道路」这一对关系。现由 `src/core/spatialRules.ts` 的 `RELATION_MATRIX` 统一声明 21 条关系与退界口径，公园/广场/水面全部从道路带让出；新增人流车流，路径由同一契约推导（步道宽度会反过来约束建筑退界）。审查数据、关系矩阵、修复代价与已知边界见 [CITY_RELATIONS.md](docs/CITY_RELATIONS.md)，复现实测用 `npx vite-node scripts/diagnose-spatial.ts`。
+
+**通行廊道规则（口径已确认）**：`RELATION_MATRIX` 登记 `road → road [setbackFrom]`，两条近似平行的独立道路带之间须留出 `2 × 步道通行带`的净距（默认 4.4 m，由 `sidewalkWidth` 派生）。交叉口与共享端点的连通段豁免。图形编辑把路挪到过近时判 `ROAD_CORRIDOR_NARROW`、`spatial.ok = false`，并给出含路段 ID、实测/要求净距与三种修复动作的 `advice`；Inspector「关系」tab 与视口 HUD 同步提示。命令面板「关系：触发廊道违规」预设可直接复现。
+
+**场景美术主题与功能占比（2026-11-15 追加）**：三维视口主题与 UI 制图主题**彻底解耦** —— `SheetTheme` 只管面板配色，`SceneTheme` 独立管视口（顶栏 `☀ 日常场景 / ▤ 制图场景` 与 `UI 海图 / UI 图纸` 是两个互不影响的开关，均存 localStorage、不写 SceneDocument）。`everyday` 落地高明度暖色板、三值 toon 材质、固定上午 10 点主光、`#4A4640` 背面挤出描边，以及 `src/core/facadeKit.ts` 的**共享模块化构件库**：13 个共享原型按 6 类功能的 L4 密度梯度装配，全部构件共用 1 个 InstancedMesh（仅 +2 draw call），`sample(seed, 盐, 序号)` 确定性、不进指纹。新增**各类功能占比可调**：`pipeline.landUse.mixMode=custom` + `mix.{住宅/商业/办公/研发}` 四个权重自动归一化，穿透字段注册表、命令白名单、存档迁移与 `stageLandUse`；Inspector「统计」页有目标 / 实际占比对照，命令面板有三个预设。设定与实测见 [ART_DIRECTION.md](docs/ART_DIRECTION.md) v1.1。默认场景规则**未改动**，实测：默认 2,973 件构件，住宅主导阳台 105→331、商业主导招牌 81→426，装配 5–11 ms、空间校验全 PASS。验证：`tsc --noEmit`、`vite build` 通过，**22 文件 / 189 用例全绿**。
+
+**默认场景预设（2026-11-15，用户确认）**：把用户导出的 `worldcraft-未来城市___400___400_m-20261106.json` 固化为首屏默认（`src/data/default-scene.json` + `src/core/preset.ts::createPresetDocument()`）。打开工作台即是 **800 × 800 m** 场景：场地 800×800、层高基准 20 / 峰值 65 m、矩形中央开放空间、中央公园 1 街区、树木最小株距 5 m、行人 400 / 车速 12 m/s，共 9 处参数；实测 752 建筑 / 1009 地块 / 1600 乔木 / 13,266 件构件零截断 / 生成 1.19 s / 空间校验 PASS。**存档里的道路图一并内置**（400 m 默认网格缩放至 800 m 的 77 节点持久化图）——只抄规则参数会生成 285 节点规则网格，得到另一座城市。顶栏「重置」、`scene.reset`、不带尺寸的 `scene.create` 都回到这份预设；`createDefaultDocument()` 的 400 m 场景保留为工程测试基准，避免 194 个用例断言失效与测试耗时暴涨。若浏览器里曾保存过旧场景，刷新会优先加载该存档，点一次「重置」即可切到新默认。
+
+**目标场地上限已确认 800–1200 m，2 km 高密度场景判定为非目标**：生成侧分块、渲染侧视锥剔除、LOD 均不投入工程；`pipeline/tiles.ts` 只保留为评估证据。决断依据与复现实测见 [ROADMAP_v1.3.md](docs/ROADMAP_v1.3.md) §3.1。
+
+**视觉体系 v1.0（制图语言）**：界面从「深色软件仪表盘」改为建筑制图语法——编号、引线注记、图例、比例尺、细线直角、图案填充、淡彩平涂三维。提供「浅色图纸 / 深色海图」双主题，顶栏 `UI 海图 / UI 图纸` 切换（主题存 localStorage，不进 SceneDocument）。规范见 [VISUAL_STYLE.md](docs/VISUAL_STYLE.md)，组件级预览见 [styleboard.html](docs/styleboard.html)。
+**双主题修复（2026-11-15）**：`styles.css` 里两套 `:root[data-theme]` 变量曾被「配色回退」改成逐行相同，导致按钮与 `dataset.theme` 都在、点击却毫无视觉变化。现已按 `VISUAL_STYLE.md §4` 恢复两套独立设计令牌（浅色纸黄墨线 / 深色海图白线 + 45° 菱形网格），把 6 处硬编码旧深色改为主题变量，并新增 `uiTheme.test.ts` 把「两套主题至少 12 个变量不同、功能色不反转、明暗语义正确」变成自动化回归，防止再次被无意识回退。
 **改造只作用于呈现层**：默认场景实测仍为指纹 `381A0250`、150 建筑 / 241 地块 / 57 公园 / 777 乔木 / 空间校验 PASS，与改造前逐位一致；`npm run build` 与 93 个测试全绿。
 
-**当前 Scene Schema：v1.2.0**（v1.0.0 / v1.1.0 存档自动迁移）。版本演进：
+**当前 Scene Schema：v1.3.0**（v1.0.0 / v1.1.0 / v1.2.0 存档自动迁移）。版本演进：
 - v1.1.0：把扁平单函数生成流程重构为显式阶段 DAG（道路 → 地块 → 功能 → 建筑/公园 → 树木）。
 - v1.2.0：**可编辑道路图 + 多边形地块系统** —— 道路节点/路段可增删改向，地块支持非矩形、多边形、凹凸边界的生成/拆分/合并/修改，编辑后建筑、公园、树木自动重适配。
+- v1.3.0：**区域选择器叠加层 + E1/E2 正式实现 + 可插拔阶段注册表** —— `SceneDocument.regions`（缺省空数组，是倍率恒等元）；`pipeline.extensions` 增加岸线退界 / 水面高程 / 地形幅度 / 频率四项；LLM 改走后端代理 + tool calling，命令目录由 `satisfies Record<Command['op'], ...>` 做编译期穷尽检查。旧存档加载时自动补齐新增字段。
+
+> 注：v1.3.0 起 `rules` 内容变化，**默认场景指纹不再是 `381A0250`**；下文与历史文档中的指纹是 v1.2.0 及更早版本的实测基线，保留作为历史证据。既有 93 个用例未通过修改指纹断言来适配，全部仍然通过。
 
 ---
 
@@ -81,6 +97,10 @@ S0 场地基底
 - [COMMAND_SPEC.md](docs/COMMAND_SPEC.md) — 命令与字段注册表
 - [VISUAL_STYLE.md](docs/VISUAL_STYLE.md) — 参考图解析、Design Token、组件映射、双主题与不变量
 - [ACCEPTANCE.md](docs/ACCEPTANCE.md) — 验收逐步记录
+- [CITY_RELATIONS.md](docs/CITY_RELATIONS.md) — 城市要素关系契约、规则审查与通行廊道规则
+- [ROADMAP_v1.3.md](docs/ROADMAP_v1.3.md) — 各阶段完成度、实测数据与未实现边界
+- [ART_DIRECTION.md](docs/ART_DIRECTION.md) — 三渲二日常街区统一美术风格设定（色彩/光影/材质/轮廓/功能建筑/避免倾向）
+- [art-direction-board.html](docs/art-direction-board.html) — 配套视觉风格板（单文件，可直接打开）
 
 ---
 
@@ -175,15 +195,19 @@ worldcraft/
 ├── src/
 │   ├── core/
 │   │   ├── geom/
-│   │   │   ├── polygon.ts     多边形内核（面积/包含/切分/合并/自交）
+│   │   │   ├── polygon.ts     多边形内核（面积/包含/切分/共边合并/自交）
+│   │   │   ├── boolean.ts     v1.3.0 布尔并/交/差、稳健合并、多边形内缩
 │   │   │   ├── planar.ts      可编辑道路图 → 平面闭合面提取
 │   │   │   └── defaultGraph.ts 初始规则网格图生成器
 │   │   ├── pipeline/
 │   │   │   ├── geometry.ts    AABB / 空间索引
 │   │   │   ├── contracts.ts   阶段 DAG、上下文、拓扑排序、依赖守卫
+│   │   │   ├── registry.ts    v1.3.0 可插拔模块注册表 + 节点图导出
+│   │   │   ├── tiles.ts       v1.3.0 瓦片索引与视口裁剪
 │   │   │   ├── stages.ts      S0–S6 + E1/E2 全部阶段实现
 │   │   │   ├── validate.ts    空间关系校验器
-│   │   │   └── index.ts       执行器、GeneratedScene 汇总
+│   │   │   └── index.ts       执行器（从 registry 取阶段）、GeneratedScene 汇总
+│   │   ├── regions.ts     v1.3.0 区域选择器 + 规则叠加层 + 严格校验
 │   │   ├── types.ts       Scene Schema / 图 / 编辑序列 / 图层对象 / Command / 展示色板
 │   │   ├── schema.ts      默认规则、严格校验、v1.0/1.1 迁移
 │   │   ├── fields.ts      规则字段注册表
@@ -209,11 +233,14 @@ worldcraft/
 
 ---
 
-## 7. 后续阶段建议（按优先级）
+## 7. 后续阶段建议（v1.3.0 更新）
 
-1. **自由节点图编辑**：把阶段改成可插拔模块描述，为 Blender Geometry Nodes / Unreal PCG 数据模型对齐做准备。
-2. **实现 E1 水系 / E2 地形要素**：按已声明 contract 补齐水面多边形、岸线退界、高程场回填与道路纵断协调。
-3. **多边形布尔运算升级**：用 Greiner–Hormann 或 Clipper 替代当前的共边消除合并，支持任意相邻/重叠地块合并。
-4. **分区谓词可配置**：把五分区轴主导互斥升级为「区域选择器 + 规则叠加层」，保留不变量测试。
-5. **LOD / 分块生成**：场地扩大到 2 km × 2 km 时按街区分块生成与裁剪。
-6. **LLM 后端代理**与结构化输出（tool calling / JSON Schema）替代浏览器直连。
+原六项建议已在 v1.3.0 中推进，完成度、实测数据、未完成部分与原因见 [ROADMAP_v1.3.md](docs/ROADMAP_v1.3.md)。当前剩余待办按依赖排序：
+
+1. **先确认 2 km 场景是否真是目标**：实测 2 km 单次生成 6.6 s；且路网节点数不随面积增长、乔木被 `maxTrees` 截断，当前「扩大场地」实际是放大格子。未确认前不要投入渲染侧 LOD。
+2. 若确定要做：管线拆成「全局拓扑 + 逐瓦片几何」，并把 `tiles.ts` 的索引接入渲染循环（会改变现有「7 类各 1 个 InstancedMesh」约束）。
+3. **E1 二期**：临路退界、水系拓扑连通约束。当前水面沿用与建筑相同的地块红线口径，见 `validate.ts` §7 注释。
+4. **E2 二期**：把 `heightfield` 回填到建筑基础标高与道路 Y 坐标；当前高程场是数据图层，渲染层仍是平涂示意。
+5. **区域叠加层 Inspector 可视化编辑**：目前通过命令面板「区域：…」结构化预设操作。
+6. **自由节点图拖拽编辑**：registry 已支持注册自定义阶段与导出节点图描述，但可视化节点网络需要独立运行时 + 连线 UI，属于独立产品而非一次重构。
+7. **可运行的结构化命令预设**：区域、E1、E2 均已加入命令面板，可无 AI 直接验证全部核心能力。

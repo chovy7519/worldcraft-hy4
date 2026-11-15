@@ -9,9 +9,9 @@ import { diffDocuments } from './diff';
 import { DEFAULT_LLM_CONFIG, loadLlmConfig, saveLlmConfig, type LlmConfig } from './llm';
 import { generateScene } from './pcg';
 import {
-  cloneDoc, createDefaultDocument, parseSceneJSON,
-  serializeScene, STORAGE_KEY,
+  cloneDoc, parseSceneJSON, serializeScene, STORAGE_KEY,
 } from './schema';
+import { createPresetDocument } from './preset';
 import {
   type Command, type CommandLogEntry, type CommandSource, type ObjectOverride,
   type RuleChange, type SceneDocument, type ZoneId,
@@ -91,7 +91,9 @@ function initialDoc(): SceneDocument {
       if (parsed.ok && parsed.doc) return parsed.doc;
     }
   } catch { /* localStorage 不可用时退回默认场景 */ }
-  return createDefaultDocument();
+  // 无存档时打开即用户确认的 800 × 800 m 预设（含其已编辑道路图）。
+  // 400 m 的 createDefaultDocument() 只作为工程测试基准，不再作为首屏场景。
+  return createPresetDocument();
 }
 
 function pushLog(
@@ -354,7 +356,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   reset: () => {
     const s = get();
-    const doc = createDefaultDocument(s.doc.seed);
+    // 重置回到用户默认预设，保留当前 seed（改过种子时参数仍是预设的那套）
+    const doc = createPresetDocument(s.doc.seed);
     const fp = generateScene(doc).fingerprint;
     set({
       doc,

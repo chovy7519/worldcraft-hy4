@@ -64,6 +64,87 @@ const PRESETS: Array<{ label: string; text: string; hot?: boolean; json?: string
       { op: 'graph.edge.remove', id: 'ge.1' },
     ], null, 2),
   },
+  {
+    label: '区域：西侧带密度 -50%', text: '沿 X 轴 -200 ~ -100 m 的带状区域降低密度 50%',
+    json: JSON.stringify([{
+      op: 'region.add',
+      layer: {
+        id: 'r.westband', name: '西侧带状区域',
+        selector: { kind: 'band', axis: 'x', min: -200, max: -100 },
+        density: 0.5, height: 1, enabled: true, priority: 10, blend: 'multiply',
+      },
+    }], null, 2),
+  },
+  {
+    label: '区域：中心 80m 增高', text: '以场地中心 80 m 半径内建筑高度提高 30%',
+    json: JSON.stringify([{
+      op: 'region.add',
+      layer: {
+        id: 'r.core80', name: '中心 80m 圈',
+        selector: { kind: 'radius', cx: 0, cz: 0, r: 80 },
+        density: 1, height: 1.3, enabled: true, priority: 5, blend: 'multiply',
+      },
+    }], null, 2),
+  },
+  {
+    label: '区域：清空叠加层', text: '清空全部区域叠加层',
+    json: JSON.stringify([{ op: 'region.clear' }], null, 2),
+  },
+  {
+    label: 'E1：水系 + 岸线退界 6m', text: '启用水系扩展点，把岸线退界设为 6 米',
+    json: JSON.stringify([
+      { op: 'rule.set', path: 'pipeline.extensions.water', value: true },
+      { op: 'rule.set', path: 'pipeline.landUse.waterReserveRatio', value: 0.08 },
+      { op: 'rule.set', path: 'pipeline.extensions.bankSetback', value: 6 },
+    ], null, 2),
+  },
+  {
+    label: 'E2：地形高程场', text: '启用地形扩展点并加大起伏幅度',
+    json: JSON.stringify([
+      { op: 'rule.set', path: 'pipeline.extensions.terrain', value: true },
+      { op: 'rule.set', path: 'pipeline.extensions.terrainAmplitude', value: 5 },
+    ], null, 2),
+  },
+  {
+    label: '流动：车流加倍', text: '把车辆数量提高到 144',
+    json: JSON.stringify([{ op: 'rule.set', path: 'pipeline.mobility.vehicles', value: 144 }], null, 2),
+  },
+  {
+    label: '流动：步道加宽 3m', text: '加宽步道；建筑退界会按关系契约自动跟着变',
+    json: JSON.stringify([{ op: 'rule.set', path: 'pipeline.mobility.sidewalkWidth', value: 3 }], null, 2),
+  },
+  {
+    label: '流动：关闭', text: '关闭人流与车流',
+    json: JSON.stringify([{ op: 'rule.set', path: 'pipeline.mobility.enabled', value: false }], null, 2),
+  },
+  {
+    label: '关系：触发廊道违规', text: '把节点挪近，验证通行廊道规则与修复提示',
+    json: JSON.stringify([{ op: 'graph.node.move', id: 'gn.9', x: -95, z: -108 }], null, 2),
+  },
+  {
+    label: '功能：住宅主导街区', text: '切到自定义占比，住宅 60% / 商业 25% / 办公 10% / 研发 5%',
+    json: JSON.stringify([
+      { op: 'rule.set', path: 'pipeline.landUse.mixMode', value: 'custom' },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.residential', value: 0.6 },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.commercial', value: 0.25 },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.office', value: 0.1 },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.research', value: 0.05 },
+    ], null, 2),
+  },
+  {
+    label: '功能：沿街商业街区', text: '商业 55% / 住宅 30% / 办公 10% / 研发 5%，构件层招牌密度随之上升',
+    json: JSON.stringify([
+      { op: 'rule.set', path: 'pipeline.landUse.mixMode', value: 'custom' },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.residential', value: 0.3 },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.commercial', value: 0.55 },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.office', value: 0.1 },
+      { op: 'rule.set', path: 'pipeline.landUse.mix.research', value: 0.05 },
+    ], null, 2),
+  },
+  {
+    label: '功能：回到预设配比', text: '切回 mixPreset 权重表（自定义权重保留但不生效）',
+    json: JSON.stringify([{ op: 'rule.set', path: 'pipeline.landUse.mixMode', value: 'preset' }], null, 2),
+  },
 ];
 
 interface CommandPanelProps {
@@ -111,9 +192,13 @@ export function CommandPanel(props: CommandPanelProps) {
   // 首屏就把验收语句解析成可见的结构化命令，证明「无 AI 也能验证核心能力」
   useEffect(() => { applyLocal(ACCEPT_1); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
+  // proxy 模式由后端持有密钥，浏览器不需要 apiKey；direct 模式仅开发调试
+  const llmReady = llmConfig.enabled
+    && (llmConfig.mode === 'proxy' ? Boolean(llmConfig.proxyUrl) : Boolean(llmConfig.apiKey));
+
   async function resolveCommands(): Promise<{ commands: Command[]; source: CommandSource; ui: UiAction[] } | null> {
     setError(''); setNotice(''); setBusy(true);
-    if (llmConfig.enabled && llmConfig.apiKey) {
+    if (llmReady) {
       const res = await parseWithLlm(input, doc.rules, doc.seed, llmConfig);
       if (res.commands) {
         setCommandsText(JSON.stringify(res.commands, null, 2));
@@ -188,8 +273,10 @@ export function CommandPanel(props: CommandPanelProps) {
     <div className="command-panel">
       <div className="cmd-head">
         <h2>AI Command</h2>
-        <span className={`tag ${llmConfig.enabled && llmConfig.apiKey ? 'green' : 'accent'}`}>
-          {llmConfig.enabled && llmConfig.apiKey ? 'LLM 已配置 · 输出经白名单校验' : '本地规则解析器 · 无需 API'}
+        <span className={`tag ${llmReady ? 'green' : 'accent'}`}>
+          {llmReady
+            ? `LLM 已配置 · ${llmConfig.mode === 'proxy' ? '后端代理' : '直连（仅开发）'} · 输出经白名单校验`
+            : '本地规则解析器 · 无需 API'}
         </span>
         <span className="spacer" />
         <button className={`btn sm ghost ${showLlm ? 'active' : ''}`} onClick={() => setShowLlm((v) => !v)}>AI 接口设置</button>
@@ -261,14 +348,27 @@ export function CommandPanel(props: CommandPanelProps) {
               <span className="spacer" />
               <button className="btn sm primary" onClick={() => { setLlmConfig(llmDraft); setStatus('AI 接口设置已保存到浏览器本地存储'); }}>保存设置</button>
             </div>
+            <div className="row" style={{ gap: 8, marginTop: 6 }}>
+              <span className="small muted">接入方式</span>
+              <button className={`btn sm ${llmDraft.mode === 'proxy' ? 'primary' : 'ghost'}`} onClick={() => setLlmDraft({ ...llmDraft, mode: 'proxy' })}>后端代理（推荐）</button>
+              <button className={`btn sm ${llmDraft.mode === 'direct' ? 'primary' : 'ghost'}`} onClick={() => setLlmDraft({ ...llmDraft, mode: 'direct' })}>浏览器直连（仅开发）</button>
+            </div>
             <div className="llm-grid">
-              <label>Base URL<input className="input small" value={llmDraft.baseUrl} onChange={(e) => setLlmDraft({ ...llmDraft, baseUrl: e.target.value })} placeholder="https://api.openai.com/v1" /></label>
               <label>模型<input className="input small" value={llmDraft.model} onChange={(e) => setLlmDraft({ ...llmDraft, model: e.target.value })} placeholder="gpt-4o-mini" /></label>
-              <label>API Key<input className="input small" type="password" value={llmDraft.apiKey} onChange={(e) => setLlmDraft({ ...llmDraft, apiKey: e.target.value })} placeholder="仅存本机 localStorage" /></label>
-              <button className="btn sm" onClick={() => setLlmDraft({ ...llmDraft, apiKey: '' })}>清除</button>
+              {llmDraft.mode === 'proxy' ? (
+                <label>代理地址<input className="input small" value={llmDraft.proxyUrl} onChange={(e) => setLlmDraft({ ...llmDraft, proxyUrl: e.target.value })} placeholder="/api/llm" /></label>
+              ) : (
+                <>
+                  <label>Base URL<input className="input small" value={llmDraft.baseUrl} onChange={(e) => setLlmDraft({ ...llmDraft, baseUrl: e.target.value })} placeholder="https://api.openai.com/v1" /></label>
+                  <label>API Key<input className="input small" type="password" value={llmDraft.apiKey} onChange={(e) => setLlmDraft({ ...llmDraft, apiKey: e.target.value })} placeholder="仅存本机 localStorage" /></label>
+                </>
+              )}
+              <button className="btn sm" onClick={() => setLlmDraft({ ...llmDraft, apiKey: '' })}>清除密钥</button>
             </div>
             <div className="llm-note">
-              LLM 只输出 Command[] JSON，经 validateCommands() 白名单校验后由受控执行器运行，不生成任何三维代码。密钥仅存浏览器 localStorage、不进源码与 git；浏览器直连会在本机请求中携带密钥，生产环境请改由后端代理。
+              v1.3.0 默认走后端代理：先设置服务端环境变量 OPENAI_API_KEY，再运行 <b>npm run proxy</b>（Vite 已把 /api 转发到 5191）。
+              代理模式使用 tool calling + JSON Schema 约束输出，密钥不进浏览器；直连模式仅用于开发调试。
+              两条路径的输出都必须经 validateCommands() 白名单校验，LLM 不生成任何三维代码。
             </div>
           </div>
         )}

@@ -17,26 +17,31 @@ import {
   dist, isSimple, mergePolygons, moveVertex, pointInPolygon, polygonArea,
   splitPolygonByLine, v, type Polygon, type Vec2,
 } from '../geom/polygon';
+import { insetPolygon, mergePolygonsRobust, unionPolygons } from '../geom/boolean';
 import { extractFaces, totalFaceArea } from '../geom/planar';
+import { evaluateRegions, type SiteFrame } from '../regions';
+import { buildingRoadClearance, clearanceFor, setbackFromRoads } from '../spatialRules';
+import { resolveMixWeights } from '../landUseMix';
 import { validateSpatialLayout } from './validate';
 import type {
   AssemblyLayer, BuildingLayer, LandUseLayer, ParcelLayer, ParkLayer, RoadLayer,
   StageContext, StageId, StageOutputs, TerrainFeatureLayer, TerrainLayer, TreeLayer, WaterLayer,
 } from './contracts';
 import {
-  ZONE_IDS,
-  type ArchetypeId, type BlockObject, type Bounds, type BuildingObject, type LandUseId,
+  BUILT_USE_IDS, ZONE_IDS,
+  type ArchetypeId, type BlockObject, type Bounds, type BuildingObject, type BuiltUseId, type LandUseId,
   type MixPreset, type PaletteId, type ParkCluster, type ParkObject, type ParkSizeClass,
-  type ParcelObject, type ParcelUse, type Point2, type Polygon2, type RoadBand,
-  type RoadSegment, type SceneStats, type TreeObject, type ZoneId,
+  type HeightSample, type ParcelObject, type ParcelUse, type Point2, type Polygon2,
+  type RoadBand, type RoadProfileSample, type RoadSegment, type SceneStats,
+  type TerrainFeature, type TreeObject, type WaterSurface, type ZoneId,
 } from '../types';
 
 // ---------------------------------------------------------------------------
 // 静态注册表
 // ---------------------------------------------------------------------------
 
-type BuiltUse = 'office' | 'residential' | 'research' | 'commercial';
-const BUILT_USES: BuiltUse[] = ['office', 'residential', 'research', 'commercial'];
+type BuiltUse = BuiltUseId;
+const BUILT_USES: BuiltUse[] = BUILT_USE_IDS;
 const ALL_LAND_USES: LandUseId[] = ['office', 'residential', 'research', 'commercial', 'park', 'plaza', 'waterReserved', 'terrainReserved'];
 
 export interface ArchetypeSpec {
@@ -89,6 +94,16 @@ const normalizeXZ = (x: number, z: number, w: number, d: number) => ({ nx: x / (
 const asRect = (b: Bounds): Rect => ({ minX: b.minX, maxX: b.maxX, minZ: b.minZ, maxZ: b.maxZ });
 const toPoly = (p: Polygon2): Polygon => p.map((q) => v(q.x, q.z));
 const toPoints = (p: Polygon): Polygon2 => p.map((q) => ({ x: q.x, z: q.z }));
+
+/**
+ * 地块合并：优先走 v1.2.0 的共边消除快速路径（结果逐位一致、无浮点扰动），
+ * 只有快速路径失败才交给 Martinez 布尔并集，支持长边/短边端点不匹配与部分重叠。
+ */
+function mergeParcelPolygons(a: Polygon, b: Polygon): Polygon | null {
+  const fast = mergePolygons(a, b);
+  if (fast) return fast;
+  return mergePolygonsRobust(a, b).polygon;
+}
 
 /** 两个多边形是否共享一条完整边（端点互换匹配，容差 5cm） */
 function shareEdge(a: Polygon, b: Polygon): boolean {
@@ -273,7 +288,7 @@ function stageParcels(ctx: StageContext): ParcelLayer {
     if (central.length > 1) {
       let merged = central[0]; let ok = true;
       for (let i = 1; i < central.length; i++) {
-        const m = mergePolygons(merged.polygon, central[i].polygon);
+        const m = mergeParcelPolygons(merged.polygon, central[i].polygon);
         if (!m) { ok = false; break; }
         merged = { polygon: m, isCentral: true, editDepth: 0, source: `${merged.source}+${central[i].source}` };
       }
@@ -301,7 +316,7 @@ function stageParcels(ctx: StageContext): ParcelLayer {
       const findAt = (q: Point2) => work.findIndex((w) => pointInPolygon(w.polygon, q.x, q.z));
       const ia = findAt(edit.a); const ib = findAt(edit.b);
       if (ia < 0 || ib < 0 || ia === ib) { skippedEdits.push(`${edit.id}: 两点未落在两个不同地块内`); continue; }
-      const m = mergePolygons(work[ia].polygon, work[ib].polygon);
+      const m = mergeParcelPolygons(work[ia].polygon, work[ib].polygon);
       if (!m) { skippedEdits.push(`${edit.id}: 两地块不共边，无法合并`); continue; }
       const keep = Math.max(0, Math.min(ia, ib));
       const drop = Math.max(ia, ib);
@@ -368,7 +383,9 @@ function stageParcels(ctx: StageContext): ParcelLayer {
 function stageLandUse(ctx: StageContext): LandUseLayer {
   const { parcels } = ctx.upstream('parcels');
   const p = ctx.params.landUse;
-  const weights = MIX_WEIGHTS[p.mixPreset] ?? MIX_WEIGHTS.balanced;
+  // preset 与 custom 共用同一归一化口径：默认场景（mixMode='preset'）的抽样序列
+  // 与改造前逐位一致，自定义占比则完全由用户可调的四个权重驱动。
+  const weights = resolveMixWeights(p, MIX_WEIGHTS);
   const counts = emptyLandUseCounts();
   const byParcel: Record<string, ParcelUse> = {};
 
@@ -486,16 +503,17 @@ function footprintFits(poly: Polygon, corners: Vec2[], edgeBuffers: number[]): b
   const mz = corners.reduce((s, q) => s + q.z, 0) / corners.length;
   return check(mx, mz);
 }
-/** 每条地块边的净距：临道路边取道路半宽 + 0.5，其余取配置退界 */
-function edgeBuffersOf(poly: Polygon, bands: RoadBand[], setback: number): number[] {
+/** 每条地块边的净距：临道路边取道路半宽 + 建筑临路净距（由步道宽度驱动），其余取配置退界 */
+function edgeBuffersOf(poly: Polygon, bands: RoadBand[], params: StageContext['params']): number[] {
+  const clearance = buildingRoadClearance(params);
   return poly.map((a, i) => {
     const b = poly[(i + 1) % poly.length];
-    let buf = setback;
+    let buf = params.parcels.setback;
     for (const band of bands) {
       if (band.boundary || band.suppressed) continue;
       const d1 = distanceToSegment(a.x, a.z, v(band.a.x, band.a.z), v(band.b.x, band.b.z));
       const d2 = distanceToSegment(b.x, b.z, v(band.a.x, band.a.z), v(band.b.x, band.b.z));
-      if (d1 < 0.05 && d2 < 0.05) { buf = Math.max(buf, band.width / 2 + 0.5); }
+      if (d1 < 0.05 && d2 < 0.05) { buf = Math.max(buf, band.width / 2 + clearance); }
     }
     return buf;
   });
@@ -551,14 +569,16 @@ function stageBuildings(ctx: StageContext): BuildingLayer {
   const maxPerParcel = clamp(Math.round(p.maxPerParcel), 1, 4);
   const activeBands = roads.bands.filter((b) => !b.suppressed && !b.boundary);
   const maxRoadHalf = Math.max(0, ...activeBands.map((b) => b.width / 2));
-  const uniformBuffer = Math.max(ctx.params.parcels.setback, maxRoadHalf + 0.5);
+  const uniformBuffer = Math.max(ctx.params.parcels.setback, maxRoadHalf + buildingRoadClearance(ctx.params));
+  // 区域叠加层按地块质心独立判定：空层是恒等元，命中层只改变本地块的 prob / 高度
+  const site: SiteFrame = { width: ctx.rules.terrain.width, depth: ctx.rules.terrain.depth };
+  const regions = ctx.doc.regions ?? [];
 
   for (const parcel of parcels) {
     const use = land.byParcel[parcel.id]?.use;
     if (!use || !BUILT_USES.includes(use as BuiltUse)) continue;
     const builtUse = use as BuiltUse;
     const zoneMult = ctx.rules.density.zoneMultipliers[parcel.zone];
-    const prob = clamp(ctx.rules.density.base * zoneMult, 0, 1);
     const specList = ARCHETYPE_BY_USE[builtUse].map(([a, w]) => [a, w * (a === 'tower' ? (parcel.zone === 'core' ? 2.4 : 0.6) : 1)] as [ArchetypeId, number]);
     const jitter = clamp(p.archetypeJitter, 0, 1);
     const archetype: ArchetypeId = jitter > 0 && sample(ctx.seed, 'archetype-jitter', parcel.serial) < jitter
@@ -569,13 +589,16 @@ function stageBuildings(ctx: StageContext): BuildingLayer {
     slotsByZone[parcel.zone] += slotCount;
 
     const poly = toPoly(parcel.polygon);
+    const parcelCenter = centroid(poly);
+    const region = evaluateRegions(regions, parcelCenter.x, parcelCenter.z, site);
+    const prob = clamp(ctx.rules.density.base * zoneMult * region.density, 0, 1);
     const bounds = asRect(parcel.bounds);
     const bw = rectWidth(bounds); const bd = rectDepth(bounds);
     if (bw < 6 || bd < 6) continue;
     const angles = candidateAngles(poly);
     const ratio = spec.ratio[0] + (spec.ratio[1] - spec.ratio[0]) * sample(ctx.seed, 'fp', parcel.serial);
     const target = Math.max(6, ctx.params.parcels.targetSize);
-    const edgeBuffers = edgeBuffersOf(poly, activeBands, ctx.params.parcels.setback);
+    const edgeBuffers = edgeBuffersOf(poly, activeBands, ctx.params);
     const maxFoot = Math.max(4, Math.min(bw, bd) - 2 * uniformBuffer - 1);
     const baseW = clamp(target * ratio, 4, maxFoot);
     const baseD = clamp(baseW / spec.aspect, 3, maxFoot);
@@ -617,7 +640,7 @@ function stageBuildings(ctx: StageContext): BuildingLayer {
       const c = chosen[k];
       const { h: rawH, factor } = heightAt(ctx, c.cx, c.cz, parcel.serial, k);
       const override = ctx.doc.overrides[`bld.${parcel.serial}.${k}`];
-      const h = clamp(override?.height ?? rawH * spec.heightFactor * ctx.rules.height.zoneMultipliers[parcel.zone], 4, 500);
+      const h = clamp(override?.height ?? rawH * spec.heightFactor * ctx.rules.height.zoneMultipliers[parcel.zone] * region.height, 4, 500);
       const fscale = Math.min(override?.footprintScale ?? 1, 1.5);
       const w = c.w * fscale; const d = c.d * fscale;
       const footprint = cornersOf(c.cx, c.cz, w, d, c.angle);
@@ -627,7 +650,8 @@ function stageBuildings(ctx: StageContext): BuildingLayer {
       const trace = [
         `stage=S4a · parcel=${parcel.id} · polygon ${poly.length} 顶点 · ${parcel.isConcave ? '凹' : '凸'} · 面积 ${parcel.area.toFixed(1)}m²`,
         `use=${builtUse} · archetype=${archetype}(${spec.label}) · zone=${parcel.zone}`,
-        `density.base=${ctx.rules.density.base} × zoneMultipliers.${parcel.zone}=${zoneMult} → p=${prob.toFixed(3)}`,
+        `density.base=${ctx.rules.density.base} × zoneMultipliers.${parcel.zone}=${zoneMult}${region.matched.length ? ` × regions=${region.density}` : ''} → p=${prob.toFixed(3)}`,
+        ...(region.matched.length ? [`区域叠加层：${region.matched.join(' → ')} · 密度 ×${region.density} · 高度 ×${region.height}`] : []),
         `旋转内接矩形：angle=${c.angle.toFixed(3)}rad · ${w.toFixed(2)}×${d.toFixed(2)}m · 逐边净距 ${edgeBuffers.map((x) => x.toFixed(1)).join('/')}m`,
         `height.profile=${ctx.rules.height.profile} f=${factor.toFixed(3)} × heightFactor=${spec.heightFactor} × zone=${ctx.rules.height.zoneMultipliers[parcel.zone]}`,
         `footprint 四角均落在 parcel.polygon 内`,
@@ -700,8 +724,15 @@ function stageParks(ctx: StageContext): ParkLayer {
     const style: ParkObject['style'] = cluster.isCentral ? ctx.rules.openSpace.style
       : isPlaza ? 'plaza' : sample(ctx.seed, 'parkstyle', cluster.id) < p.styleJitter ? 'plaza' : 'park';
 
+    // 城市要素关系契约：公园/广场必须从道路带退让，与建筑、水面共用同一退界口径。
+    // 退界后面积、包围盒、内切圆、树位与空间校验全部由 finalPoly 自动传导。
+    const activeBands = ctx.upstream('roads').bands.filter((b) => !b.suppressed && !b.boundary);
+    const greenClearance = clearanceFor('park', ctx.params);
+
     for (const g of groups) {
-      const finalPoly = g.polygon;
+      const setback = setbackFromRoads(g.polygon, activeBands, greenClearance);
+      if (!setback.polygon) continue; // 被道路退界完全吞掉的地块不再生成绿地
+      const finalPoly = setback.polygon;
       const c = centroid(finalPoly);
       const b = boundsOf(finalPoly);
       const { nx, nz } = normalizeXZ(c.x, c.z, width, depth);
@@ -844,25 +875,133 @@ function stageTrees(ctx: StageContext): TreeLayer {
 // E1 / E2 扩展占位阶段
 // ---------------------------------------------------------------------------
 
+/** E2 高程场：正弦基频 + 按坐标独立哈希扰动，无全局 RNG 流，局部编辑不扰动其他地块 */
+function terrainHeightAt(ctx: StageContext, x: number, z: number, amplitude: number, frequency: number): number {
+  const phase = frequency * Math.PI * 2;
+  const wave = Math.sin(x * phase) * Math.cos(z * phase);
+  const jitter = sample(ctx.seed, 'terrain-height', Math.round(x * 100), Math.round(z * 100)) - 0.5;
+  return ctx.rules.terrain.groundLevel + amplitude * (0.5 * wave + 0.25 * jitter);
+}
+
+/**
+ * E1 水系（v1.3.0 正式实现）
+ * 1. 全部 waterReserved 地块做布尔并集，得到若干个互不相连的水面连通体；
+ * 2. 每个连通体向内做岸线退界（凹形导致内缩退化时保守回退，绝不越界桥接）；
+ * 3. 记录 shoreline / bankSetback / level，供空间校验与渲染使用。
+ * 地块本身由道路围合，因此水面不会跨越道路带；validate.ts 再做一次独立复核。
+ */
 function stageWater(ctx: StageContext): WaterLayer {
   const land = ctx.upstream('landuse');
   const { byId } = ctx.upstream('parcels');
+  const roads = ctx.upstream('roads');
   const reserved = land.uses.filter((u) => u.use === 'waterReserved').map((u) => u.parcelId);
-  if (!ctx.params.extensions.water) return { surfaces: [], reservedParcelIds: reserved };
-  return {
-    surfaces: reserved.map((id) => ({ id: `water.${id}`, kind: 'water', bounds: byId[id].bounds, parcelIds: [id], placeholder: true })),
-    reservedParcelIds: reserved,
-  };
+  if (!ctx.params.extensions.water || reserved.length === 0) {
+    return { surfaces: [], reservedParcelIds: reserved };
+  }
+  const ext = ctx.params.extensions;
+  const parts = reserved.map((id) => ({ id, poly: toPoly(byId[id].polygon) })).filter((x) => x.poly.length >= 3);
+  const merged = unionPolygons(parts.map((x) => x.poly));
+  const surfaces: WaterSurface[] = [];
+
+  for (let i = 0; i < merged.polygons.length; i++) {
+    const shore = merged.polygons[i];
+    const owners = parts
+      .filter((x) => { const c = centroid(x.poly); return pointInPolygon(shore, c.x, c.z, -1e-6); })
+      .map((x) => x.id)
+      .sort();
+    if (owners.length === 0) continue;
+    const inset = ext.bankSetback > 0 ? insetPolygon(shore, ext.bankSetback) : null;
+    // 凹多边形内缩可能退化：回退到原始岸线，并把实际退界记为 0
+    const banked = inset ?? shore;
+    // 关系契约：水面还要从道路带退让，与公园共用同一套 setbackFromRoads 口径
+    const clipped = setbackFromRoads(banked, roads.bands, clearanceFor('water', ctx.params));
+    if (!clipped.polygon) continue;
+    const waterPoly = clipped.polygon;
+    const bounds = boundsOf(waterPoly);
+    surfaces.push({
+      id: `water.c${i}`, kind: 'water',
+      bounds, parcelIds: owners, placeholder: false,
+      polygon: toPoints(waterPoly), shoreline: toPoints(shore),
+      width: Math.min(rectWidth(asRect(bounds)), rectDepth(asRect(bounds))),
+      bankSetback: inset ? ext.bankSetback : 0,
+      level: ext.waterLevel,
+      connected: owners.length > 1,
+    });
+  }
+  return { surfaces, reservedParcelIds: reserved };
 }
+
+/**
+ * E2 地形要素（v1.3.0 正式实现）
+ * 每个 terrainReserved 地块生成高程场采样、坡度、挡墙线，并对邻近路段做纵断协调采样。
+ * 注意：高程场是**数据图层**，尚未回填到建筑/道路的 Y 坐标（渲染层仍是平涂示意），
+ * 这是刻意保留的边界，见 docs/ROADMAP_v1.3.md。
+ */
 function stageTerrainFeatures(ctx: StageContext): TerrainFeatureLayer {
   const land = ctx.upstream('landuse');
   const { byId } = ctx.upstream('parcels');
+  const roads = ctx.upstream('roads');
   const reserved = land.uses.filter((u) => u.use === 'terrainReserved').map((u) => u.parcelId);
-  if (!ctx.params.extensions.terrain) return { features: [], reservedParcelIds: reserved };
-  return {
-    features: reserved.map((id) => ({ id: `tf.${id}`, kind: 'terrainFeature', bounds: byId[id].bounds, parcelIds: [id], placeholder: true })),
-    reservedParcelIds: reserved,
-  };
+  if (!ctx.params.extensions.terrain || reserved.length === 0) {
+    return { features: [], reservedParcelIds: reserved };
+  }
+  const ext = ctx.params.extensions;
+  const features: TerrainFeature[] = [];
+
+  for (const id of reserved) {
+    const parcel = byId[id];
+    if (!parcel) continue;
+    const poly = toPoly(parcel.polygon);
+    const b = asRect(parcel.bounds);
+    const n = 3;
+    const dx = (b.maxX - b.minX) / n;
+    const dz = (b.maxZ - b.minZ) / n;
+    const heightfield: HeightSample[] = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const x = b.minX + (i + 0.5) * dx;
+        const z = b.minZ + (j + 0.5) * dz;
+        heightfield.push({ x, z, y: terrainHeightAt(ctx, x, z, ext.terrainAmplitude, ext.terrainFrequency) });
+      }
+    }
+    let slope = 0;
+    for (let k = 0; k < heightfield.length; k++) {
+      const a = heightfield[k];
+      const i = Math.floor(k / n);
+      if (i + 1 < n) {
+        const c = heightfield[k + n];
+        slope = Math.max(slope, Math.abs(c.y - a.y) / Math.max(0.5, dz));
+      }
+    }
+    let longest = 0;
+    let retainingLines: Point2[][] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const len = dist(poly[i], poly[(i + 1) % poly.length]);
+      if (len > longest) { longest = len; retainingLines = [toPoints([poly[i], poly[(i + 1) % poly.length]])]; }
+    }
+    if (slope <= 0.12) retainingLines = [];
+
+    const cx = (b.minX + b.maxX) / 2;
+    const cz = (b.minZ + b.maxZ) / 2;
+    const roadProfiles = roads.segments
+      .filter((s) => !s.boundary && Math.abs(s.x - cx) < 80 && Math.abs(s.z - cz) < 80)
+      .slice(0, 6)
+      .map((s) => ({
+        edgeId: s.id,
+        samples: [0, 0.25, 0.5, 0.75, 1].map((t): RoadProfileSample => ({
+          t,
+          y: terrainHeightAt(ctx, s.a.x + (s.b.x - s.a.x) * t, s.a.z + (s.b.z - s.a.z) * t,
+            ext.terrainAmplitude, ext.terrainFrequency),
+        })),
+      }));
+
+    features.push({
+      id: `tf.${id}`, kind: 'terrainFeature',
+      bounds: parcel.bounds, parcelIds: [id], placeholder: false,
+      polygon: toPoints(poly), heightfield, slope, retainingLines, roadProfiles,
+    });
+  }
+  return { features, reservedParcelIds: reserved };
 }
 
 // ---------------------------------------------------------------------------
@@ -919,27 +1058,33 @@ function stageAssembly(ctx: StageContext): AssemblyLayer {
     polygonParcels: parcels.filter((q) => q.polygon.length !== 4 || q.isConcave).length,
     faceArea: Math.round(roads.faceArea), siteArea: Math.round(roads.siteArea),
     skippedEdits: parcelLayer.skippedEdits.length,
+    regionLayers: (ctx.doc.regions ?? []).filter((r) => r.enabled).length,
+    waterSurfaces: water.surfaces.length,
+    terrainPatches: tf.features.length,
   };
 
   const spatial = validateSpatialLayout({
     site: terrain.site, bands: roads.bands, parcels, uses: land.uses,
     buildings: build.buildings.filter((b) => !b.deleted), parks,
-    trees: trees.trees, water: water.surfaces, params: ctx.params,
+    trees: trees.trees, water: water.surfaces, terrainFeatures: tf.features, params: ctx.params,
     faceIssues: roads.faceIssues, faceArea: roads.faceArea, siteArea: roads.siteArea,
     graph: ctx.doc.graph,
   });
 
+  // 空叠加层是恒等元，不进入指纹：保证 v1.2.0 存档在迁移后仍得到同一几何指纹
+  const regions = ctx.doc.regions ?? [];
   const fingerprint = fingerprintOf({
     seed: ctx.seed, rules: ctx.rules, graph: ctx.doc.graph,
     parcelEdits: ctx.doc.parcelEdits, overrides: ctx.doc.overrides,
+    ...(regions.length ? { regions } : {}),
     bands: roads.bands.map((b) => [b.id, b.a, b.b, b.width, b.cls, b.suppressed]),
     parcels: parcels.map((q) => [q.id, q.polygon, q.zone, q.isCentralPark, q.isConcave]),
     uses: land.uses.map((u) => [u.parcelId, u.use, u.clusterId]),
     buildings: build.buildings.map((b) => [b.id, b.footprint, b.h, b.color, b.roof, b.archetype, b.orientation, b.visible, b.deleted]),
     parks: parks.map((p) => [p.id, p.polygon, p.shape, p.style, p.sizeClass, p.radius]),
     trees: trees.trees.map((t) => [t.id, t.x, t.z, t.scale, t.context]),
-    water: water.surfaces.map((w) => [w.id, w.bounds]),
-    terrainFeatures: tf.features.map((f) => [f.id, f.bounds]),
+    water: water.surfaces.map((w) => [w.id, w.bounds, w.polygon, w.shoreline, w.bankSetback, w.level]),
+    terrainFeatures: tf.features.map((f) => [f.id, f.bounds, f.polygon, f.heightfield, f.slope, f.retainingLines, f.roadProfiles]),
   });
   return { stats, fingerprint, spatial };
 }
@@ -961,8 +1106,11 @@ export function stageForPath(path: string): StageId {
   if (path.startsWith('pipeline.buildings.')) return 'buildings';
   if (path.startsWith('pipeline.parks.') || path.startsWith('openSpace.')) return 'parks';
   if (path.startsWith('pipeline.trees.')) return 'trees';
-  if (path.startsWith('pipeline.extensions.water')) return 'water';
-  if (path.startsWith('pipeline.extensions.terrain')) return 'terrainFeatures';
+  if (path.startsWith('pipeline.extensions.')) {
+    const key = path.slice('pipeline.extensions.'.length);
+    if (key === 'water' || key === 'bankSetback' || key === 'waterLevel') return 'water';
+    if (key === 'terrain' || key === 'terrainAmplitude' || key === 'terrainFrequency') return 'terrainFeatures';
+  }
   if (path.startsWith('terrain.')) return 'terrain';
   if (path.startsWith('density.') || path.startsWith('height.') || path.startsWith('material.')) return 'buildings';
   return 'assembly';

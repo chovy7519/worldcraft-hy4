@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { SheetTheme } from './CityScene';
+import type { SceneTheme, SheetTheme } from './CityScene';
 import type { GeneratedScene, SceneDocument } from '../core/types';
 
 interface TopBarProps {
@@ -9,8 +9,14 @@ interface TopBarProps {
   canUndo: boolean;
   canRedo: boolean;
   llmEnabled: boolean;
+  showMobility: boolean;
+  mobilityPaused: boolean;
+  toggleMobility: () => void;
+  toggleMobilityPause: () => void;
   theme: SheetTheme;
   toggleTheme: () => void;
+  sceneTheme: SceneTheme;
+  toggleSceneTheme: () => void;
   undo: () => void;
   redo: () => void;
   save: () => void;
@@ -22,7 +28,7 @@ interface TopBarProps {
 
 export function TopBar(props: TopBarProps) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const { doc, scene, statusMessage, canUndo, canRedo, llmEnabled, theme } = props;
+  const { doc, scene, statusMessage, canUndo, canRedo, llmEnabled, theme, sceneTheme, showMobility, mobilityPaused } = props;
 
   return (
     <header className="topbar">
@@ -45,14 +51,27 @@ export function TopBar(props: TopBarProps) {
         <button className="btn sm" onClick={props.load}>加载</button>
         <button className="btn sm" onClick={() => fileRef.current?.click()}>导入</button>
         <button className="btn sm" onClick={props.exportJSON}>导出 JSON</button>
-        <button className="btn sm" onClick={props.reset}>重置</button>
+        <button className="btn sm" title="回到默认 800 × 800 m 预设场景（保留当前 seed）" onClick={props.reset}>重置</button>
+      </div>
+      <div className="tool-group">
+        <button className={`btn sm ${showMobility ? 'primary' : ''}`} title="显示 / 隐藏人流与车流" onClick={props.toggleMobility}>
+          {showMobility ? '● 流动' : '○ 流动'}
+        </button>
+        <button className="btn sm" disabled={!showMobility} title="暂停 / 继续流动" onClick={props.toggleMobilityPause}>
+          {mobilityPaused ? '▶ 继续' : '❚❚ 暂停'}
+        </button>
       </div>
       <div className="tool-group">
         <button
+          className={`btn sm ${sceneTheme === 'everyday' ? 'primary' : ''}`}
+          title="切换三维场景美术主题：日常三渲二 / 深色制图。与编辑器 UI 主题彼此独立，不改变场景数据"
+          onClick={props.toggleSceneTheme}
+        >{sceneTheme === 'everyday' ? '☀ 日常场景' : '▤ 制图场景'}</button>
+        <button
           className="btn sm"
-          title="切换制图主题：浅色图纸 / 深色海图"
+          title="切换编辑器 UI 制图主题：浅色图纸 / 深色海图（不影响三维视口）"
           onClick={props.toggleTheme}
-        >{theme === 'sheet' ? '◐ 海图' : '◑ 图纸'}</button>
+        >{theme === 'sheet' ? '◐ UI 海图' : '◑ UI 图纸'}</button>
       </div>
       <input
         ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }}
